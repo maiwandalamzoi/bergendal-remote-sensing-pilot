@@ -129,21 +129,38 @@ or open `outputs/bergendal_map.html` directly in a browser for just the map.
    municipality-wide population/housing-stock growth 2018-2024
    (`cbs_trend.py`) for context. The sidebar's village selector filters
    the Field Explorer map to just that place's real administrative
-   boundary *and* zooms/outlines it on the Overview map too
-   (`make_map(village=...)` fits the map's bounds to the village polygon
-   and draws it as its own toggleable layer) — picking a village in the
-   sidebar now visibly moves both maps, not just one (other tabs stay
-   municipality-wide, stated explicitly rather than left ambiguous).
+   boundary *and* re-cuts the Overview map to it too — picking a village
+   doesn't just zoom the map in on the whole municipality's imagery, it
+   clips every raster layer to the village's real boundary
+   (`_clip_to_village()` in `visualize.py`: the alpha channel of each
+   already-rendered true colour / NDVI / land cover / SAR / flood /
+   elevation / air-quality / BRP-category PNG is zeroed outside the
+   village polygon, rasterized against the same WGS84 rectangle Folium
+   draws the PNG onto), leaving the plain OpenStreetMap basemap visible
+   everywhere else — a real "snap and cut," not an outline drawn on top
+   of unchanged imagery (other tabs stay municipality-wide, stated
+   explicitly rather than left ambiguous).
 
    **Map controls & print report** — both Folium maps (Overview and Field
-   Explorer) carry a real Leaflet fullscreen control
-   (`folium.plugins.Fullscreen`, top-left), and the sidebar has a
-   "Print this tab" button that triggers the browser's own print dialog
-   (`window.parent.print()`, since the map lives in an `st.components.v1`
-   iframe) against dedicated print CSS that hides the sidebar, Streamlit's
-   header/toolbar and the tab bar, and stamps the printed page with the
-   date and the current village/whole-municipality scope — a plain
-   "save the page as PDF" rather than a separate export pipeline.
+   Explorer) now read like an actual map report, not just a widget: a
+   real Leaflet fullscreen control (`folium.plugins.Fullscreen`,
+   top-left), a scale bar (`control_scale=True`), a north arrow (both
+   basemaps are plain north-up OpenStreetMap tiles, so a static badge is
+   cartographically correct), a title/scope/date/data-source strip baked
+   into the map's own HTML (`_report_header_element()` — a small pill on
+   screen, a full title block under `@media print`, since it's inside the
+   map's `st.components.v1` iframe and needs to be part of *that*
+   document to survive printing), and a real legend for every colour mode
+   (category, crop family, and now the two NDVI modes too, each a
+   gradient swatch built from the same vmin/vmax/colormap the fill itself
+   uses, so legend and fill can't disagree). The sidebar's "Print this
+   tab" button triggers the browser's own print dialog
+   (`window.parent.print()`) against dedicated print CSS that hides the
+   sidebar, Streamlit's header/toolbar and the tab bar — a plain "save
+   the page as PDF" rather than a separate export pipeline, but with
+   the title/legend/scale/north-arrow already drawn onto the map so what
+   prints looks like an actual cartographic sheet, not a screenshot of an
+   interactive widget.
 
    **Trends & Climate** is the 22-year analysis tab: a **Year Explorer**
    widget up top (`st.select_slider`) that pulls every number this

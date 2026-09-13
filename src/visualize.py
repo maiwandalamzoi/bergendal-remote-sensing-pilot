@@ -4,6 +4,7 @@ static PNG maps (true colour, NDVI, land cover, year-over-year change) and
 one interactive Leaflet map (via folium) with all of them as toggleable
 layers over real OpenStreetMap basemap, framed on Berg en Dal.
 """
+import datetime
 from pathlib import Path
 
 import folium
@@ -45,6 +46,61 @@ def _bounds_wgs84(profile) -> list:
     geom = gpd.GeoSeries([box(*b)], crs=profile["crs"]).to_crs(4326).iloc[0]
     minx, miny, maxx, maxy = geom.bounds
     return [[miny, minx], [maxy, maxx]]
+
+
+def _load_village(village: str | None):
+    """Returns (geom_wgs84, bounds_wgs84) for a name from
+    data/raw/villages.geojson (CBS's own "wijken"), or (None, None) if no
+    village was given or it isn't found on disk. Centralizes the lookup
+    that used to be duplicated inline in make_map()."""
+    if not village:
+        return None, None
+    import geopandas as gpd
+
+    villages_path = RAW_DIR / "villages.geojson"
+    if not villages_path.exists():
+        return None, None
+    villages_gdf = gpd.read_file(villages_path)
+    match = villages_gdf[villages_gdf["wijknaam"] == village]
+    if not len(match):
+        return None, None
+    geom = match.geometry.iloc[0]
+    vminx, vminy, vmaxx, vmaxy = match.total_bounds
+    return geom, [[vminy, vminx], [vmaxy, vmaxx]]
+
+
+def _slug(name: str) -> str:
+    return "".join(ch.lower() if ch.isalnum() else "_" for ch in name)
+
+
+def _clip_to_village(png_path: Path, bounds: list, village_geom_wgs84, village_slug: str) -> Path:
+    """"Snap and cut": zeroes the alpha channel of an already-rendered
+    overlay PNG everywhere outside the village polygon, instead of leaving
+    the whole municipality's imagery visible under just a zoom + outline.
+    Works directly against the WGS84 `bounds` rectangle every *_png()
+    function already returns -- the exact rectangle
+    folium.raster_layers.ImageOverlay draws the PNG onto -- so it needs no
+    access to the source raster's own CRS/transform, and the cut lines up
+    with what's on screen by construction.
+
+    Writes a village-suffixed sibling file rather than overwriting the
+    whole-municipality PNG, so switching the sidebar back to "All of Berg
+    en Dal" still has the uncut original to fall back to (and different
+    villages don't clobber each other's cached file)."""
+    from rasterio.features import rasterize
+    from rasterio.transform import from_bounds
+
+    out_path = png_path.with_name(f"{png_path.stem}_{village_slug}{png_path.suffix}")
+    img = np.array(Image.open(png_path).convert("RGBA"))
+    h, w = img.shape[:2]
+    (south, west), (north, east) = bounds
+    transform = from_bounds(west, south, east, north, w, h)
+    inside = rasterize(
+        [(village_geom_wgs84, 1)], out_shape=(h, w), transform=transform, fill=0, dtype="uint8",
+    ).astype(bool)
+    img[..., 3] = np.where(inside, img[..., 3], 0)
+    Image.fromarray(img).save(out_path)
+    return out_path
 
 
 def true_color_png(label: str) -> tuple[Path, list]:
@@ -276,6 +332,59 @@ def _hex_from_cmap(value, vmin, vmax, cmap_name):
     return f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}"
 
 
+def _report_header_element(lang: str, village: str | None) -> folium.Element:
+    """The QGIS-print-composer-style title/scope/date/source strip shared
+    by both maps -- a small pill on screen, a full title block on
+    @media print (see the embedded <style>). Baked into the map's own
+    HTML (not the surrounding Streamlit page) so it's part of what
+    actually prints from inside the st.components.v1 iframe."""
+    i = 0 if lang == "en" else 1
+    scope_text = village or ("Berg en Dal (whole municipality)", "Berg en Dal (hele gemeente)")[i]
+    report_title = ("Berg en Dal — remote sensing pilot", "Berg en Dal — aardobservatie-pilot")[i]
+    source_line = "Sentinel-1/2 · Landsat · AHN LiDAR · RIVM · KNMI · BRP · CBS · ISRIC SoilGrids"
+    report_date = datetime.date.today().strftime("%d %B %Y")
+    return folium.Element(f"""
+    <style>
+      .bd-map-report {{
+        position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
+        z-index: 9998; background: rgba(255,255,255,.92); padding: 4px 14px;
+        border-radius: 999px; box-shadow: 0 1px 4px rgba(0,0,0,.18);
+        font-family: sans-serif; font-size: 11px; color: #16221C; white-space: nowrap;
+      }}
+      .bd-map-report .bd-mr-sub {{ display: none; }}
+      @media print {{
+        .bd-map-report {{
+          position: static; transform: none; width: 100%; text-align: left;
+          border-radius: 0; box-shadow: none; background: #fff; white-space: normal;
+          padding: 0 0 10px; border-bottom: 2px solid #16221C; margin-bottom: 8px;
+        }}
+        .bd-map-report .bd-mr-title {{ font-size: 17px; font-weight: 700; }}
+        .bd-map-report .bd-mr-sub {{ display: block; color: #444; font-size: 12px; margin-top: 3px; }}
+        .leaflet-control-zoom, .leaflet-control-fullscreen {{ display: none !important; }}
+      }}
+    </style>
+    <div class="bd-map-report">
+      <span class="bd-mr-title">🛰️ {report_title}</span>
+      <span class="bd-mr-sub">{scope_text} · {report_date} · {source_line}</span>
+    </div>
+    """)
+
+
+def _north_arrow_element() -> folium.Element:
+    """A static 'N ↑' badge -- both maps' basemap tiles (OpenStreetMap via
+    Leaflet) are always plain north-up, so a fixed arrow is cartographically
+    correct here without computing a real bearing."""
+    return folium.Element("""
+    <div style="position: fixed; top: 112px; left: 10px; z-index: 9998;
+                background: white; width: 34px; height: 34px; border-radius: 6px;
+                box-shadow: 0 1px 4px rgba(0,0,0,.25); display: flex; align-items: center;
+                justify-content: center; flex-direction: column; font-family: sans-serif;">
+      <div style="font-size: 14px; line-height: 1;">&#8593;</div>
+      <div style="font-size: 9px; font-weight: 700; line-height: 1; margin-top: 1px;">N</div>
+    </div>
+    """)
+
+
 def field_explorer_map(color_by: str = "category", center: list | None = None, lang: str = "en",
                         village: str | None = None):
     """One clickable field per BRP parcel, recoloured by whichever attribute
@@ -391,7 +500,7 @@ def field_explorer_map(color_by: str = "category", center: list | None = None, l
             fields=["_crop_display", "category", "_area_txt", "_ndvi25_txt", "_ndvi_chg_txt"],
             aliases=aliases,
         ),
-        name="fields",
+        name=("Field boundaries (BRP)", "Perceelgrenzen (BRP)")[i],
     ).add_to(m)
 
     if color_by == "crop_family":
@@ -429,11 +538,73 @@ def field_explorer_map(color_by: str = "category", center: list | None = None, l
           {rows}
         </div>
         """))
+    elif color_by == "category":
+        # Every color_by mode now carries a real legend -- this one used to
+        # be the one silent exception (crop_family had one, the field's
+        # default coloring didn't).
+        rows = "".join(
+            f'<div style="display:flex;align-items:center;gap:7px;margin:3px 0;">'
+            f'<span style="width:12px;height:12px;background:{color};display:inline-block;'
+            f'border-radius:2px;flex-shrink:0;"></span><span>{cat}</span></div>'
+            for cat, color in BRP_COLORS.items()
+        )
+        legend_title = ("Category (BRP)", "Categorie (BRP)")[i]
+        m.get_root().html.add_child(folium.Element(f"""
+        <div style="position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+                    background: white; padding: 10px 14px; border-radius: 8px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,.2); font-family: sans-serif; font-size: 11.5px;
+                    max-width: 220px;">
+          <div style="font-weight:600; margin-bottom:4px; font-size:12px;">{legend_title}</div>
+          {rows}
+        </div>
+        """))
+    elif color_by in ("ndvi_2025", "ndvi_change"):
+        # A sequential/diverging gradient swatch with labeled endpoints --
+        # the same vmin/vmax/colormap color_for() itself uses, so the
+        # legend and the fill are guaranteed to agree.
+        if color_by == "ndvi_2025":
+            vmin, vmax, cmap_name = 0.2, 0.9, "RdYlGn"
+            legend_title = ("NDVI 2025 (health)", "NDVI 2025 (vitaliteit)")[i]
+            lo_txt, hi_txt = (("0.2 · bare / stressed", "0.9 · dense / healthy") if lang == "en"
+                              else ("0,2 · kaal / gestrest", "0,9 · dicht / vitaal"))
+        else:
+            vmin, vmax, cmap_name = -0.15, 0.15, "BrBG"
+            legend_title = ("NDVI change 2024→2025", "NDVI-verandering 2024→2025")[i]
+            lo_txt, hi_txt = (("-0.15 · decline", "+0.15 · growth") if lang == "en"
+                              else ("-0,15 · afname", "+0,15 · toename"))
+        stops = [_hex_from_cmap(vmin + f * (vmax - vmin), vmin, vmax, cmap_name) for f in (0, .25, .5, .75, 1)]
+        gradient_css = ",".join(stops)
+        m.get_root().html.add_child(folium.Element(f"""
+        <div style="position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+                    background: white; padding: 10px 14px; border-radius: 8px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,.2); font-family: sans-serif; font-size: 11.5px;
+                    max-width: 220px;">
+          <div style="font-weight:600; margin-bottom:6px; font-size:12px;">{legend_title}</div>
+          <div style="height:12px; border-radius:3px; background: linear-gradient(to right, {gradient_css});"></div>
+          <div style="display:flex; justify-content:space-between; margin-top:4px; color:#555; font-size:10.5px;">
+            <span>{lo_txt}</span><span>{hi_txt}</span>
+          </div>
+        </div>
+        """))
+
+    if village_geom is not None:
+        folium.GeoJson(
+            village_geom.__geo_interface__, name=f"📍 {village}",
+            style_function=lambda x: {"fillOpacity": 0, "color": "#4a3aa7", "weight": 3},
+        ).add_to(m)
 
     folium.GeoJson(
         geometry_wgs84().__geo_interface__, name="Municipal boundary",
         style_function=lambda x: {"fillOpacity": 0, "color": "#16221C", "weight": 2},
     ).add_to(m)
+
+    # Same QGIS-print-composer-style title/scope/date/source strip and
+    # north arrow as the Overview map (see _report_header_element /
+    # _north_arrow_element) -- Field Explorer is printable too.
+    m.get_root().html.add_child(_report_header_element(lang, village))
+    m.get_root().html.add_child(_north_arrow_element())
+
+    folium.LayerControl(collapsed=False).add_to(m)
     return m
 
 
@@ -534,10 +705,13 @@ def make_map(label_new: str = "summer_2025", label_old: str = "summer_2024", lan
     """Builds the folium.Map object without saving it -- used directly by
     build_map() below and embedded live in dashboard.py. `lang` ("en"/"nl")
     switches every layer name and legend on the map itself, not just the
-    Streamlit chrome around it. `village`, a name from data/raw/villages.geojson,
-    zooms to that place and outlines its real administrative boundary
-    on top of every imagery layer -- the same village the sidebar's
-    selector already filters Field Explorer to."""
+    Streamlit chrome around it. `village`, a name from
+    data/raw/villages.geojson, zooms to that place, clips every raster
+    layer to its real administrative boundary (see `_clip_to_village` --
+    alpha zeroed outside the polygon, not just a zoom + outline over the
+    whole-municipality imagery), and draws the boundary itself as its own
+    outlined layer -- the same village the sidebar's selector already
+    filters Field Explorer to."""
     i = 0 if lang == "en" else 1
     tc_path, bounds = true_color_png(label_new)
     ndvi_path, _ = ndvi_png(label_new)
@@ -555,18 +729,30 @@ def make_map(label_new: str = "summer_2025", label_old: str = "summer_2024", lan
     no2_path, no2_bounds = air_quality_png("no2")
     brp_path, brp_bounds, brp_colors = brp_png()
 
-    village_geom_wgs84 = None
-    village_bounds = None
-    if village:
-        import geopandas as gpd
-        villages_path = RAW_DIR / "villages.geojson"
-        if villages_path.exists():
-            villages_gdf = gpd.read_file(villages_path)
-            match = villages_gdf[villages_gdf["wijknaam"] == village]
-            if len(match):
-                village_geom_wgs84 = match.geometry.iloc[0]
-                vminx, vminy, vmaxx, vmaxy = match.total_bounds
-                village_bounds = [[vminy, vminx], [vmaxy, vmaxx]]
+    village_geom_wgs84, village_bounds = _load_village(village)
+
+    # "Snap and cut": once a village is picked, every raster layer above
+    # gets clipped to its real boundary (alpha zeroed outside it) instead
+    # of the whole municipality staying visible under a zoom + outline --
+    # picking a place now visibly cuts the map to it, not just centers on
+    # it. Vector layers (BRP field boundaries within Field Explorer,
+    # the municipal/village outlines below) are already place-accurate by
+    # construction and don't need this.
+    if village_geom_wgs84 is not None:
+        vslug = _slug(village)
+        tc_path = _clip_to_village(tc_path, bounds, village_geom_wgs84, vslug)
+        ndvi_path = _clip_to_village(ndvi_path, bounds, village_geom_wgs84, vslug)
+        lc_path = _clip_to_village(lc_path, bounds, village_geom_wgs84, vslug)
+        chg_path = _clip_to_village(chg_path, bounds, village_geom_wgs84, vslug)
+        vv_path = _clip_to_village(vv_path, vv_bounds, village_geom_wgs84, vslug)
+        water_path = _clip_to_village(water_path, vv_bounds, village_geom_wgs84, vslug)
+        flood_path = _clip_to_village(flood_path, flood_bounds, village_geom_wgs84, vslug)
+        if flood_cd_path is not None:
+            flood_cd_path = _clip_to_village(flood_cd_path, flood_cd_bounds, village_geom_wgs84, vslug)
+        elev_path = _clip_to_village(elev_path, elev_bounds, village_geom_wgs84, vslug)
+        ndsm_path = _clip_to_village(ndsm_path, elev_bounds, village_geom_wgs84, vslug)
+        no2_path = _clip_to_village(no2_path, no2_bounds, village_geom_wgs84, vslug)
+        brp_path = _clip_to_village(brp_path, brp_bounds, village_geom_wgs84, vslug)
 
     if village_bounds:
         center = [(village_bounds[0][0] + village_bounds[1][0]) / 2, (village_bounds[0][1] + village_bounds[1][1]) / 2]
@@ -711,6 +897,19 @@ def make_map(label_new: str = "summer_2025", label_old: str = "summer_2024", lan
     </div>
     """
     m.get_root().html.add_child(folium.Element(brp_legend_html))
+
+    # Print/report block: a QGIS-print-composer-style title/scope/date/
+    # source strip and a north arrow (see _report_header_element /
+    # _north_arrow_element), baked into the map's own HTML so they're
+    # part of what actually prints -- the map lives in an
+    # st.components.v1 iframe, and anything drawn only in the surrounding
+    # Streamlit page isn't guaranteed to appear in the printed output.
+    # Together with the always-on legends above, the scale bar
+    # (`control_scale=True` on the folium.Map itself) and this block, the
+    # printed page is a real map report -- title, scope, date, sources,
+    # north arrow, scale, legend -- not just a screenshot of the widget.
+    m.get_root().html.add_child(_report_header_element(lang, village))
+    m.get_root().html.add_child(_north_arrow_element())
 
     folium.LayerControl(collapsed=False).add_to(m)
     return m
