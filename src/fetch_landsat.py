@@ -35,7 +35,7 @@ from aoi import bbox_wgs84, geometry_wgs84
 
 STAC_URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
 COLLECTION = "landsat-c2-l2"
-BANDS = ["red", "nir08", "qa_pixel"]
+BANDS = ["red", "green", "nir08", "qa_pixel"]
 
 RAW_DIR = Path(__file__).resolve().parent.parent / "data" / "raw"
 RAW_DIR.mkdir(parents=True, exist_ok=True)
@@ -59,10 +59,10 @@ def _best_covering_item(datetime_range: str, max_cloud: float = 30.0):
 
 
 def fetch_date(datetime_range: str, label: str, max_cloud: float = 30.0) -> Path:
-    """Fetch red/nir08/qa_pixel for the least-cloudy fully-covering scene in
-    a date range. Writes data/raw/{label}.tif (3-band stack, native ~30m
-    grid, DN values -- preprocess_landsat.py applies the reflectance scale)
-    and returns its path."""
+    """Fetch red/green/nir08/qa_pixel for the least-cloudy fully-covering
+    scene in a date range. Writes data/raw/{label}.tif (4-band stack,
+    native ~30m grid, DN values -- preprocess_landsat.py applies the
+    reflectance scale and derives NDVI + NDWI) and returns its path."""
     item = _best_covering_item(datetime_range, max_cloud)
     platform = item.properties.get("platform", "?")
     print(f"[{label}] date={item.properties['datetime'][:10]} platform={platform} "

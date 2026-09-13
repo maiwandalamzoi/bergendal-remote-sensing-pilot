@@ -1,8 +1,9 @@
 """
-End-to-end pilot pipeline for Berg en Dal: fetch real Sentinel-1/2 imagery,
-AHN LiDAR, BRP field boundaries, CBS municipality statistics and RIVM air
-quality, run the unsupervised ML steps, and render the outputs. See src/
-for each stage; this just runs them in order with one command.
+End-to-end pilot pipeline for Berg en Dal: fetch real Sentinel-1/2 and
+Landsat imagery, AHN LiDAR, BRP field boundaries, CBS municipality
+statistics, RIVM air quality and KNMI daily weather, run the unsupervised
+ML + correlation steps, and render the outputs. See src/ for each stage;
+this just runs them in order with one command.
 
     python run_pipeline.py
 
@@ -12,10 +13,11 @@ numbers, read directly by dashboard.py -- `streamlit run dashboard.py`).
 
 Every fetch step is idempotent (skips a date/label already on disk in
 data/raw/), so re-running this after the first pass is fast except for
-whatever's genuinely new. The two heaviest steps -- ndvi_trend (6 extra
-Sentinel-2 years) and flood_event (9 Sentinel-1 scenes) -- can also be run
-standalone (`python src/ndvi_trend.py`, `python src/flood_event.py`)
-without repeating everything else.
+whatever's genuinely new. The heaviest steps -- ndvi_trend (13 extra
+Landsat years), flood_event (9 Sentinel-1 scenes), and fetch_weather (one
+20-year daily pull from KNMI) -- can also be run standalone
+(`python src/ndvi_trend.py`, `python src/flood_event.py`,
+`python src/fetch_weather.py`) without repeating everything else.
 """
 import sys
 from pathlib import Path
@@ -34,6 +36,8 @@ from preprocess_sar import process as process_sar, cross_check_water, flood_exte
 from landcover_ml import classify, ndvi_change
 from ndvi_trend import build_trend as build_ndvi_trend
 from flood_event import run as run_flood_event
+from fetch_weather import run as fetch_weather
+from climate_correlation import run as run_climate_correlation
 from visualize import build_map
 
 DATES = [
@@ -77,12 +81,18 @@ def main():
     flood_extent("sar_highwater_2024", "sar_2025")
     compute_brp_zonal_ndvi()  # per-field NDVI for the dashboard's Field Explorer tab
 
-    print("\n== 3b. ndvi trend: 2018-2025 August NDVI series (fetches missing years) ==")
+    print("\n== 3b. ndvi trend: 2005-present August NDVI+NDWI series (fetches missing years) ==")
     build_ndvi_trend()
 
     print("\n== 3c. flood event: multi-date SAR change-detection through the Jan 2024 high water ==")
     print("(fetches 4 reference + 5 event-window scenes -- adds several minutes)")
     run_flood_event()
+
+    print("\n== 3d. weather: KNMI daily records 2005-present (Deelen Airport station) ==")
+    fetch_weather()
+
+    print("\n== 3e. climate correlation: NDVI/NDWI trend vs August weather ==")
+    run_climate_correlation()
 
     print("\n== 4. visualize: PNG maps + interactive layer-toggle map ==")
     map_path = build_map("summer_2025", "summer_2024")

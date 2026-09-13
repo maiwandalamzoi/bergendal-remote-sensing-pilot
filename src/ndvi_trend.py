@@ -1,8 +1,8 @@
 """
-20+ year August NDVI trend for the Berg en Dal AOI, 2005-present -- as far
-back as clean-enough coverage goes and as current as the most recent
-finished growing season, combining two real sensors rather than stretching
-one past where it's reliable:
+20+ year August NDVI + NDWI trend for the Berg en Dal AOI, 2005-present --
+as far back as clean-enough coverage goes and as current as the most
+recent finished growing season, combining two real sensors rather than
+stretching one past where it's reliable:
 
   - 2005-2017: Landsat 5/7/8 (30m) via fetch_landsat.py + preprocess_landsat.py
   - 2018-present: Sentinel-2 L2A (10m) via fetch_sentinel2.py + preprocess.py
@@ -84,7 +84,8 @@ def build_trend() -> list[dict]:
         opt = stats.get(f"optical_summer_{year}")
         if opt:
             series.append({
-                "year": year, "mean_ndvi": opt["mean_ndvi"], "clear_pct": opt["clear_pct"],
+                "year": year, "mean_ndvi": opt["mean_ndvi"], "mean_ndwi": opt.get("mean_ndwi"),
+                "clear_pct": opt["clear_pct"],
                 "source": opt.get("source", "?"), "platform": opt.get("platform", "?"),
             })
 
@@ -104,6 +105,7 @@ def build_trend() -> list[dict]:
     update_stats("ndvi_trend", {
         "years": [p["year"] for p in series],
         "mean_ndvi": [p["mean_ndvi"] for p in series],
+        "mean_ndwi": [p["mean_ndwi"] for p in series],
         "clear_pct": [p["clear_pct"] for p in series],
         "source": [p["source"] for p in series],
         "platform": [p["platform"] for p in series],

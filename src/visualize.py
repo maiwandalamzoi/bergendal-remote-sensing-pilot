@@ -10,6 +10,7 @@ import folium
 import numpy as np
 import pandas as pd
 import rasterio
+from folium.plugins import MarkerCluster
 from matplotlib import colormaps
 from matplotlib.colors import Normalize, ListedColormap
 from PIL import Image
@@ -196,11 +197,75 @@ BRP_COLORS = {
 
 
 FIELD_COLOR_MODES = {
-    "category": "Category · Categorie",
-    "crop": "Crop · Gewas",
-    "ndvi_2025": "NDVI 2025 (health · gezondheid)",
-    "ndvi_change": "NDVI change 2024→2025 · verandering",
+    "category": ("Category", "Categorie"),
+    "crop_family": ("Crop family", "Gewasfamilie"),
+    "ndvi_2025": ("NDVI 2025 (health)", "NDVI 2025 (vitaliteit)"),
+    "ndvi_change": ("NDVI change 2024→2025", "NDVI-verandering 2024→2025"),
 }
+
+
+# Every one of the 102 distinct BRP crop names gets sorted into one of eight
+# families (plus an "other" catch-all) rather than a top-N-plus-grey scheme:
+# with 102 real crop names, no palette can give each its own distinguishable
+# hue (the dataviz method's hard cap for a choropleth-style all-pairs use is
+# 3-4 slots), so colour here encodes the *family* -- validated CVD-safe hues,
+# adjacent-pair-checked -- and the icon + tooltip carry the literal crop
+# identity as a secondary encoding, per the same method's own escape valve
+# for exactly this many-categories case. (color, icon, EN label, NL label)
+CROP_FAMILIES: dict[str, tuple[str, str, str, str]] = {
+    "grassland":  ("#1baf7a", "🌱", "Grassland & pasture", "Grasland"),
+    "maize":      ("#eda100", "🌽", "Maize", "Mais"),
+    "cereals":    ("#eb6834", "🌾", "Cereals & grains", "Granen"),
+    "root":       ("#e34948", "🥔", "Root, bulb & tuber crops", "Wortel- en knolgewassen"),
+    "vegetables": ("#e87ba4", "🥬", "Vegetables & legumes", "Groenten & peulvruchten"),
+    "fruit":      ("#008300", "🍎", "Fruit, orchards & nuts", "Fruit & boomgaarden"),
+    "cover":      ("#4a3aa7", "🍀", "Cover, fodder & oilseed crops", "Groenbemesters & oliehoudende gewassen"),
+    "nature":     ("#2a78d6", "🌳", "Nature, landscape & water", "Natuur, landschap & water"),
+    "other":      ("#999999", "❔", "Other / unclassified", "Overig"),
+}
+
+
+def classify_crop(name: str, category: str) -> str:
+    """Maps a raw BRP `gewas` name (Dutch, free-text-ish but drawn from a
+    fixed registry vocabulary) to a CROP_FAMILIES key, by keyword rather than
+    a 102-entry lookup table -- new crop names the registry adds later still
+    land somewhere sensible instead of silently falling into "other".
+    Checked against every one of this AOI's 102 actual crop names: ~97% of
+    parcels get a specific family, the rest ("Groene braak" / fallow and a
+    handful of unnamed "overige ..." catch-alls) are genuinely other."""
+    n = name.lower()
+
+    def has(*words: str) -> bool:
+        return any(w in n for w in words)
+
+    if "koolzaad" in n or "mosterd" in n or "deder" in n:
+        return "cover"
+    if has("mais"):
+        return "maize"
+    if has("tarwe", "gerst", "rogge, korrel", "granen", "spelt", "triticale", "boekweit", "haver"):
+        return "cereals"
+    if has("aardappel", "bieten", "biet,", "uien,", "wortel", "waspeen", "kroten", "cichorei"):
+        return "root"
+    if has("groenbemesting", "vanggewas", "lupine", "lupinen", "klaver", "luzerne", "miscanthus",
+           "graszaad", "bloemzaden", "sierconiferen", "kerstbomen", "drachtplanten"):
+        return "cover"
+    if has("groente", "bonen", "boon,", "erwt", "peulen", "asperge", "prei,", "sla,", "pompoen",
+           "bloemkwekerij", "droogbloemen"):
+        return "vegetables"
+    if has("appel", "peren.", "peren,", "pruim", "druiven", "bessen", "kleinfruit", "notenbomen",
+           "boomgaard", "voedselbos"):
+        return "fruit"
+    if has("grasland"):
+        return "grassland"
+    if has("natuur", "bos", "hout", "struweel", "heg,", "haag", "sloot", "water,", "poel",
+           "ruigte", "schurveling", "graften", "schouwpad", "bossingel", "wilgenhakhout",
+           "woudbomen", "sorghum"):
+        return "nature"
+    if category == "Grasland":
+        return "grassland"
+    if category in ("Natuurterrein", "Landschapselement"):
+        return "nature"
+    return "other"
 
 
 def _hex_from_cmap(value, vmin, vmax, cmap_name):
@@ -211,7 +276,7 @@ def _hex_from_cmap(value, vmin, vmax, cmap_name):
     return f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}"
 
 
-def field_explorer_map(color_by: str = "category", center: list | None = None):
+def field_explorer_map(color_by: str = "category", center: list | None = None, lang: str = "en"):
     """One clickable field per BRP parcel, recoloured by whichever attribute
     the dashboard's selector is set to -- category, crop, or either date's
     NDVI. Built fresh per selection (cheap: ~3,700 features, simplified
@@ -228,21 +293,32 @@ def field_explorer_map(color_by: str = "category", center: list | None = None):
     gdf = gpd.read_file(RAW_DIR / "brp_parcels.geojson")
     gdf_rd = gdf.to_crs(28992)
     gdf_rd["geometry"] = gdf_rd.geometry.simplify(4, preserve_topology=True)
-    gdf = gdf_rd.to_crs(4326)
 
-    top_crops = gdf["gewas"].value_counts().nlargest(9).index.tolist()
-    gdf["crop_group"] = gdf["gewas"].where(gdf["gewas"].isin(top_crops), "Other · Overig")
-    crop_palette = {crop: c for crop, c in zip(top_crops, [
-        "#8CB369", "#A2712F", "#1E4D34", "#3E7A4F", "#C9B47A",
-        "#6E9887", "#B4A38A", "#5B7B9A", "#D2A466",
-    ])}
-    crop_palette["Other · Overig"] = "#999999"
+    # One emoji marker per field, on top of the colour fill -- the fill
+    # carries the family, the icon carries the literal crop. Centroid taken
+    # here, still in RD New (a projected, metric CRS), rather than after
+    # reprojecting to WGS84 below, where a plain lat/lon centroid would be
+    # geometrically off. Skipped below ~0.3ha (over half the registry --
+    # mostly ditches, hedgerows, single trees) so the map reads as field
+    # icons, not an icon soup.
+    gdf_rd["_family"] = gdf_rd.apply(lambda r: classify_crop(r["gewas"], r["category"]), axis=1)
+    gdf_rd["_icon"] = gdf_rd["_family"].map(lambda f: CROP_FAMILIES[f][1])
+    icon_points_rd = gdf_rd[gdf_rd["area_ha"] >= 0.3][["geometry", "_icon", "gewas", "area_ha"]].copy()
+    icon_points_rd["geometry"] = icon_points_rd.geometry.centroid
+    icon_gdf = icon_points_rd.to_crs(4326)
+    icon_gdf["_lat"] = icon_gdf.geometry.y
+    icon_gdf["_lon"] = icon_gdf.geometry.x
+
+    gdf = gdf_rd.to_crs(4326)
+    # Icon + crop name in one field so the tooltip/popup shows "🌽 Mais,
+    # snij-" without needing a second aliased row just for the icon.
+    gdf["_crop_display"] = gdf["_icon"] + " " + gdf["gewas"]
 
     def color_for(row):
         if color_by == "category":
             return BRP_COLORS.get(row["category"], "#999999")
-        if color_by == "crop":
-            return crop_palette.get(row["crop_group"], "#999999")
+        if color_by == "crop_family":
+            return CROP_FAMILIES[row["_family"]][0]
         if color_by == "ndvi_2025":
             return _hex_from_cmap(row.get("ndvi_2025"), 0.2, 0.9, "RdYlGn")
         if color_by == "ndvi_change":
@@ -265,10 +341,17 @@ def field_explorer_map(color_by: str = "category", center: list | None = None):
     # Drop everything except what the layer actually renders/displays --
     # smaller payload, and NaN floats (unset ndvi on cloud-masked parcels)
     # never reach the embedded JSON at all.
-    gdf = gdf[["geometry", "gewas", "category", "_area_txt", "_ndvi25_txt", "_ndvi_chg_txt", "_color"]]
+    gdf = gdf[["geometry", "_crop_display", "category", "_area_txt", "_ndvi25_txt", "_ndvi_chg_txt", "_color"]]
 
     m = folium.Map(location=center, zoom_start=13, tiles="OpenStreetMap",
                     control_scale=True, prefer_canvas=True)
+
+    i = 0 if lang == "en" else 1
+    tooltip_aliases = [
+        ("Crop", "Gewas"), ("Category", "Categorie"), ("Area (ha)", "Oppervlakte (ha)"),
+        ("NDVI 2025", "NDVI 2025"), ("NDVI Δ 2024→25", "NDVI Δ 2024→25"),
+    ][:]
+    aliases = [pair[i] for pair in tooltip_aliases]
 
     folium.GeoJson(
         gdf.__geo_interface__,
@@ -278,18 +361,51 @@ def field_explorer_map(color_by: str = "category", center: list | None = None):
         },
         highlight_function=lambda f: {"weight": 2, "color": "#16221C", "fillOpacity": 0.9},
         tooltip=folium.GeoJsonTooltip(
-            fields=["gewas", "category", "_area_txt", "_ndvi25_txt", "_ndvi_chg_txt"],
-            aliases=["Crop · Gewas", "Category · Categorie", "Area (ha) · Oppervlakte",
-                     "NDVI 2025", "NDVI Δ 2024→25"],
-            sticky=True,
+            fields=["_crop_display", "category", "_area_txt", "_ndvi25_txt", "_ndvi_chg_txt"],
+            aliases=aliases, sticky=True,
         ),
         popup=folium.GeoJsonPopup(
-            fields=["gewas", "category", "_area_txt", "_ndvi25_txt", "_ndvi_chg_txt"],
-            aliases=["Crop · Gewas", "Category · Categorie", "Area (ha) · Oppervlakte",
-                     "NDVI 2025", "NDVI Δ 2024→25"],
+            fields=["_crop_display", "category", "_area_txt", "_ndvi25_txt", "_ndvi_chg_txt"],
+            aliases=aliases,
         ),
         name="fields",
     ).add_to(m)
+
+    if color_by == "crop_family":
+        # Clustered so 1,500+ individual markers don't turn into an
+        # unreadable pile at municipality-wide zoom -- Leaflet groups them
+        # into a numbered bubble below zoom 15 and expands to real icons
+        # above it, the standard pattern for this many point markers.
+        cluster = MarkerCluster(
+            disable_clustering_at_zoom=15, max_cluster_radius=38,
+            name="Crop icons" if lang == "en" else "Gewas-iconen",
+        ).add_to(m)
+        for _, r in icon_gdf.iterrows():
+            folium.Marker(
+                location=[r["_lat"], r["_lon"]],
+                icon=folium.DivIcon(html=(
+                    f'<div style="font-size:17px;line-height:1;text-align:center;'
+                    f'text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;">{r["_icon"]}</div>'
+                )),
+                tooltip=f'{r["_icon"]} {r["gewas"]} · {r["area_ha"]:.1f} ha',
+            ).add_to(cluster)
+
+        rows = "".join(
+            f'<div style="display:flex;align-items:center;gap:7px;margin:3px 0;">'
+            f'<span style="width:12px;height:12px;background:{color};display:inline-block;'
+            f'border-radius:2px;flex-shrink:0;"></span><span>{icon} {label[i]}</span></div>'
+            for color, icon, *label in CROP_FAMILIES.values()
+        )
+        legend_title = "Crop family" if lang == "en" else "Gewasfamilie"
+        m.get_root().html.add_child(folium.Element(f"""
+        <div style="position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+                    background: white; padding: 10px 14px; border-radius: 8px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,.2); font-family: sans-serif; font-size: 11.5px;
+                    max-width: 250px;">
+          <div style="font-weight:600; margin-bottom:4px; font-size:12px;">{legend_title}</div>
+          {rows}
+        </div>
+        """))
 
     folium.GeoJson(
         geometry_wgs84().__geo_interface__, name="Municipal boundary",
@@ -390,9 +506,12 @@ def ndsm_png() -> tuple[Path, list]:
     return out_path, _bounds_wgs84(profile)
 
 
-def make_map(label_new: str = "summer_2025", label_old: str = "summer_2024") -> folium.Map:
+def make_map(label_new: str = "summer_2025", label_old: str = "summer_2024", lang: str = "en") -> folium.Map:
     """Builds the folium.Map object without saving it -- used directly by
-    build_map() below and embedded live in dashboard.py via streamlit-folium."""
+    build_map() below and embedded live in dashboard.py. `lang` ("en"/"nl")
+    switches every layer name and legend on the map itself, not just the
+    Streamlit chrome around it."""
+    i = 0 if lang == "en" else 1
     tc_path, bounds = true_color_png(label_new)
     ndvi_path, _ = ndvi_png(label_new)
     lc_path, _, id_to_name = landcover_png(label_new)
@@ -412,49 +531,44 @@ def make_map(label_new: str = "summer_2025", label_old: str = "summer_2024") -> 
     center = [(bounds[0][0] + bounds[1][0]) / 2, (bounds[0][1] + bounds[1][1]) / 2]
     m = folium.Map(location=center, zoom_start=12, tiles="OpenStreetMap", control_scale=True)
 
-    folium.raster_layers.ImageOverlay(
-        str(tc_path), bounds=bounds, name="True colour (Aug 2025)", opacity=1.0
-    ).add_to(m)
-    folium.raster_layers.ImageOverlay(
-        str(ndvi_path), bounds=bounds, name="NDVI (Aug 2025)", opacity=0.85, show=False
-    ).add_to(m)
-    folium.raster_layers.ImageOverlay(
-        str(lc_path), bounds=bounds, name="Land cover (KMeans, Aug 2025)", opacity=0.8, show=False
-    ).add_to(m)
-    folium.raster_layers.ImageOverlay(
-        str(chg_path), bounds=bounds, name="NDVI change, Aug 2024 → 2025", opacity=0.85, show=False
-    ).add_to(m)
-    folium.raster_layers.ImageOverlay(
-        str(vv_path), bounds=vv_bounds, name="SAR backscatter, VV (Aug 2025)", opacity=0.9, show=False
-    ).add_to(m)
-    folium.raster_layers.ImageOverlay(
-        str(water_path), bounds=vv_bounds, name="SAR water mask (Aug 2025)", opacity=0.75, show=False
-    ).add_to(m)
-    folium.raster_layers.ImageOverlay(
-        str(flood_path), bounds=flood_bounds,
-        name="Flood extent (old method) — fixed threshold, Jan 2024 vs Aug 2025", opacity=0.85, show=False
-    ).add_to(m)
+    layer_names = [
+        ("True colour (Aug 2025)", "Ware kleur (aug. 2025)"),
+        ("NDVI (Aug 2025)", "NDVI (aug. 2025)"),
+        ("Land cover (KMeans, Aug 2025)", "Landgebruik (KMeans, aug. 2025)"),
+        ("NDVI change, Aug 2024 → 2025", "NDVI-verandering, aug. 2024 → 2025"),
+        ("SAR backscatter, VV (Aug 2025)", "SAR-terugkaatsing, VV (aug. 2025)"),
+        ("SAR water mask (Aug 2025)", "SAR-watermasker (aug. 2025)"),
+        ("Flood extent (old method) — fixed threshold, Jan 2024 vs Aug 2025",
+         "Overstromingsgebied (oude methode) — vaste drempel, jan. 2024 vs aug. 2025"),
+        (f"Flood extent (change detection) — peak {peak_event}",
+         f"Overstromingsgebied (verandering-detectie) — piek {peak_event}"),
+        ("Elevation, AHN DTM (m NAP)", "Hoogte, AHN DTM (m NAP)"),
+        ("Canopy / building height, AHN nDSM", "Bladerdak-/gebouwhoogte, AHN nDSM"),
+        ("Air quality — NO2 (RIVM, 2024)", "Luchtkwaliteit — NO2 (RIVM, 2024)"),
+        ("Field boundaries & crops (BRP)", "Perceelgrenzen & gewassen (BRP)"),
+        ("Municipal boundary", "Gemeentegrens"),
+    ]
+    names = [pair[i] for pair in layer_names]
+
+    folium.raster_layers.ImageOverlay(str(tc_path), bounds=bounds, name=names[0], opacity=1.0).add_to(m)
+    folium.raster_layers.ImageOverlay(str(ndvi_path), bounds=bounds, name=names[1], opacity=0.85, show=False).add_to(m)
+    folium.raster_layers.ImageOverlay(str(lc_path), bounds=bounds, name=names[2], opacity=0.8, show=False).add_to(m)
+    folium.raster_layers.ImageOverlay(str(chg_path), bounds=bounds, name=names[3], opacity=0.85, show=False).add_to(m)
+    folium.raster_layers.ImageOverlay(str(vv_path), bounds=vv_bounds, name=names[4], opacity=0.9, show=False).add_to(m)
+    folium.raster_layers.ImageOverlay(str(water_path), bounds=vv_bounds, name=names[5], opacity=0.75, show=False).add_to(m)
+    folium.raster_layers.ImageOverlay(str(flood_path), bounds=flood_bounds, name=names[6], opacity=0.85, show=False).add_to(m)
     if flood_cd_path is not None:
         folium.raster_layers.ImageOverlay(
-            str(flood_cd_path), bounds=flood_cd_bounds,
-            name=f"Flood extent (change detection) — peak {peak_event}", opacity=0.85, show=False
+            str(flood_cd_path), bounds=flood_cd_bounds, name=names[7], opacity=0.85, show=False
         ).add_to(m)
-    folium.raster_layers.ImageOverlay(
-        str(elev_path), bounds=elev_bounds, name="Elevation, AHN DTM (m NAP)", opacity=0.85, show=False
-    ).add_to(m)
-    folium.raster_layers.ImageOverlay(
-        str(ndsm_path), bounds=elev_bounds, name="Canopy / building height, AHN nDSM", opacity=0.85, show=False
-    ).add_to(m)
-    folium.raster_layers.ImageOverlay(
-        str(no2_path), bounds=no2_bounds, name="Air quality — NO2 (RIVM, 2024)", opacity=0.75, show=False
-    ).add_to(m)
-    folium.raster_layers.ImageOverlay(
-        str(brp_path), bounds=brp_bounds, name="Field boundaries & crops (BRP)", opacity=0.8, show=False
-    ).add_to(m)
+    folium.raster_layers.ImageOverlay(str(elev_path), bounds=elev_bounds, name=names[8], opacity=0.85, show=False).add_to(m)
+    folium.raster_layers.ImageOverlay(str(ndsm_path), bounds=elev_bounds, name=names[9], opacity=0.85, show=False).add_to(m)
+    folium.raster_layers.ImageOverlay(str(no2_path), bounds=no2_bounds, name=names[10], opacity=0.75, show=False).add_to(m)
+    folium.raster_layers.ImageOverlay(str(brp_path), bounds=brp_bounds, name=names[11], opacity=0.8, show=False).add_to(m)
 
     folium.GeoJson(
         geometry_wgs84().__geo_interface__,
-        name="Municipal boundary",
+        name=names[12],
         style_function=lambda x: {"fillOpacity": 0, "color": "#16221C", "weight": 2},
     ).add_to(m)
 
@@ -464,11 +578,12 @@ def make_map(label_new: str = "summer_2025", label_old: str = "summer_2024") -> 
         f'display:inline-block;border-radius:2px;"></span>{name}</div>'
         for name in sorted(set(id_to_name.values()))
     )
+    legend_title = ("Land cover (KMeans)", "Landgebruik (KMeans)")[i]
     legend_html = f"""
     <div style="position: fixed; bottom: 24px; left: 24px; z-index: 9999;
                 background: white; padding: 10px 14px; border-radius: 8px;
                 box-shadow: 0 2px 10px rgba(0,0,0,.2); font-family: sans-serif; font-size: 12px;">
-      <div style="font-weight:600; margin-bottom:4px;">Land cover (KMeans)</div>
+      <div style="font-weight:600; margin-bottom:4px;">{legend_title}</div>
       {legend_rows}
     </div>
     """
@@ -476,26 +591,47 @@ def make_map(label_new: str = "summer_2025", label_old: str = "summer_2024") -> 
 
     flood_stats = load_stats().get("flood_event", {})
     net_change_txt = f"{flood_stats['net_change_pct']:+.1f}" if "net_change_pct" in flood_stats else "?"
+    flood_legend_text = [
+        {
+            "title": "Flood extent (SAR) — two methods",
+            "permanent": "Permanent water (old method, both dates)",
+            "newly": "Newly flooded (either method)",
+            "missed": "Old method: baseline water missed (threshold noise)",
+            "note": (f"Old method (one fixed -17dB cutoff, one post-peak date): ~0 net change.<br/>"
+                     f"New method (per-pixel change detection vs. a 4-date normal-condition composite, "
+                     f"{len(flood_stats.get('timeline', []))} dates through the event): "
+                     f"{flood_stats.get('pre_event_flooded_pct', '?')}% &rarr; "
+                     f"{flood_stats.get('peak_flooded_pct', '?')}% at peak ({net_change_txt} pts net) — "
+                     f"see README/Water tab."),
+        },
+        {
+            "title": "Overstromingsgebied (SAR) — twee methodes",
+            "permanent": "Permanent water (oude methode, beide data)",
+            "newly": "Nieuw overstroomd (beide methodes)",
+            "missed": "Oude methode: basiswater gemist (drempelruis)",
+            "note": (f"Oude methode (één vaste -17dB-drempel, één datum na de piek): ~0 netto verandering.<br/>"
+                     f"Nieuwe methode (verandering-detectie per pixel t.o.v. een 4-datums normaalcomposiet, "
+                     f"{len(flood_stats.get('timeline', []))} data door de gebeurtenis): "
+                     f"{flood_stats.get('pre_event_flooded_pct', '?')}% &rarr; "
+                     f"{flood_stats.get('peak_flooded_pct', '?')}% op de piek ({net_change_txt} pt netto) — "
+                     f"zie README/tabblad Water."),
+        },
+    ][i]
     flood_legend_html = f"""
     <div style="position: fixed; bottom: 24px; right: 24px; z-index: 9999;
                 background: white; padding: 10px 14px; border-radius: 8px;
                 box-shadow: 0 2px 10px rgba(0,0,0,.2); font-family: sans-serif; font-size: 12px; max-width: 240px;">
-      <div style="font-weight:600; margin-bottom:4px;">Flood extent (SAR) — two methods</div>
+      <div style="font-weight:600; margin-bottom:4px;">{flood_legend_text['title']}</div>
       <div style="display:flex;align-items:center;gap:6px;margin:2px 0;">
         <span style="width:12px;height:12px;background:#3B6E8A;display:inline-block;border-radius:2px;"></span>
-        Permanent water (old method, both dates)</div>
+        {flood_legend_text['permanent']}</div>
       <div style="display:flex;align-items:center;gap:6px;margin:2px 0;">
         <span style="width:12px;height:12px;background:#C03B2E;display:inline-block;border-radius:2px;"></span>
-        Newly flooded (either method)</div>
+        {flood_legend_text['newly']}</div>
       <div style="display:flex;align-items:center;gap:6px;margin:2px 0;">
         <span style="width:12px;height:12px;background:#C9B47A;display:inline-block;border-radius:2px;"></span>
-        Old method: baseline water missed (threshold noise)</div>
-      <div style="margin-top:6px; color:#666; font-size:10.5px;">
-        Old method (one fixed -17dB cutoff, one post-peak date): ~0 net change.<br/>
-        New method (per-pixel change detection vs. a 4-date normal-condition composite,
-        {len(flood_stats.get('timeline', []))} dates through the event):
-        {flood_stats.get('pre_event_flooded_pct', '?')}% &rarr; {flood_stats.get('peak_flooded_pct', '?')}%
-        at peak ({net_change_txt} pts net) — see README/Water tab.</div>
+        {flood_legend_text['missed']}</div>
+      <div style="margin-top:6px; color:#666; font-size:10.5px;">{flood_legend_text['note']}</div>
     </div>
     """
     m.get_root().html.add_child(folium.Element(flood_legend_html))
@@ -505,13 +641,15 @@ def make_map(label_new: str = "summer_2025", label_old: str = "summer_2024") -> 
         f'<span style="width:12px;height:12px;background:{color};display:inline-block;border-radius:2px;"></span>{name}</div>'
         for name, color in brp_colors.items()
     )
+    brp_legend_title = ("Field boundaries (BRP)", "Perceelgrenzen (BRP)")[i]
+    brp_legend_note = ("Per-crop breakdown is on the dashboard.", "Uitsplitsing per gewas staat op het dashboard.")[i]
     brp_legend_html = f"""
     <div style="position: fixed; bottom: 300px; left: 24px; z-index: 9999;
                 background: white; padding: 10px 14px; border-radius: 8px;
                 box-shadow: 0 2px 10px rgba(0,0,0,.2); font-family: sans-serif; font-size: 12px;">
-      <div style="font-weight:600; margin-bottom:4px;">Field boundaries (BRP)</div>
+      <div style="font-weight:600; margin-bottom:4px;">{brp_legend_title}</div>
       {brp_legend_rows}
-      <div style="margin-top:4px; color:#666; font-size:10.5px;">Per-crop breakdown is on the dashboard.</div>
+      <div style="margin-top:4px; color:#666; font-size:10.5px;">{brp_legend_note}</div>
     </div>
     """
     m.get_root().html.add_child(folium.Element(brp_legend_html))
@@ -520,8 +658,8 @@ def make_map(label_new: str = "summer_2025", label_old: str = "summer_2024") -> 
     return m
 
 
-def build_map(label_new: str = "summer_2025", label_old: str = "summer_2024") -> Path:
-    m = make_map(label_new, label_old)
+def build_map(label_new: str = "summer_2025", label_old: str = "summer_2024", lang: str = "en") -> Path:
+    m = make_map(label_new, label_old, lang=lang)
     out_path = OUT_DIR / "bergendal_map.html"
     m.save(str(out_path))
     print(f"saved interactive map: {out_path}")

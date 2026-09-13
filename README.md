@@ -78,31 +78,61 @@ or open `outputs/bergendal_map.html` directly in a browser for just the map.
    - year-over-year NDVI change between the two most recent cloud-free
      August scenes (2024 → 2025).
    - `src/ndvi_trend.py` — the actual multi-year series that one year-pair
-     delta above can't be: mean clear-ground NDVI for the least-cloudy
-     August date in every year 2005–present, computed to whichever August
-     has most recently finished. Two sensors, one series: `src/fetch_landsat.py`
-     + `src/preprocess_landsat.py` (Landsat 5/7/8, 30m) for 2005–2017, where
-     Sentinel-2 L2A coverage over this AOI isn't reliable yet, handing off to
-     `fetch_sentinel2.fetch_date` + `preprocess.process` (10m) from 2018 on —
-     both write the same `optical_summer_{year}` stats key regardless of
+     delta above can't be: mean clear-ground NDVI *and* NDWI for the
+     least-cloudy August date in every year 2005–present, computed to
+     whichever August has most recently finished. Two sensors, one series:
+     `src/fetch_landsat.py` + `src/preprocess_landsat.py` (Landsat 5/7/8,
+     30m, red/green/nir08/qa_pixel bands) for 2005–2017, where Sentinel-2
+     L2A coverage over this AOI isn't reliable yet, handing off to
+     `fetch_sentinel2.fetch_date` + `preprocess.process` (10m) from 2018 on
+     — both write the same `optical_summer_{year}` stats key regardless of
      source, so the dashboard reads one continuous series.
-5. **Visualize** (`src/visualize.py`) — PNG maps for every layer (true
+5. **Weather & correlation**
+   - `src/fetch_weather.py` — real daily weather 2005–present from KNMI's
+     public daggegevens API (no key), station 275 Deelen Airport (the
+     nearest official station to the AOI — none sits inside the
+     municipality itself). Saves the full daily series
+     (`data/raw/knmi_daily.csv`) and derives August + full-year summaries
+     (rainfall, temperature, sunshine, evapotranspiration, humidity).
+   - `src/climate_correlation.py` — Pearson correlation between the
+     NDVI/NDWI trend and August weather, across every year both exist for.
+     Finding: August temperature is the strongest single correlate of that
+     year's NDVI (r ≈ -0.6, hotter → lower vigour); rainfall alone
+     correlates weakly. Documented caveats ship with the numbers: ~20
+     years is a small sample for a correlation coefficient, a snapshot day
+     is being compared against a month's integral, and temperature/
+     rainfall/sunshine move together across a real summer so no single
+     variable can be cleanly isolated as "the" driver.
+6. **Visualize** (`src/visualize.py`) — PNG maps for every layer (true
    colour, NDVI, land cover, NDVI change, SAR backscatter, SAR water mask,
    both flood-extent methods, elevation, canopy/building height), assembled
    into one Folium/Leaflet map (`outputs/bergendal_map.html`) with all of
-   them as toggleable overlays.
-6. **Dashboard** (`dashboard.py`) — a bilingual (EN/NL) Streamlit app with
-   six tabs: Overview, **Field Explorer**, Land & Crops, Environment &
-   Energy, Water, and a Business case tab spelling out who'd actually pay
-   for this and what the real remaining data gaps are. Everything
-   reads from `data/processed/stats.json` (each stage writes its own
-   summary there via `src/statsutil.py` — nothing is recomputed for
-   display).
+   them as toggleable overlays. The map's own layer names and legends
+   switch language too (`make_map(lang=...)` / `field_explorer_map(lang=...)`)
+   — the dashboard's language switch isn't just the Streamlit chrome around it.
+7. **Dashboard** (`dashboard.py`) — a Streamlit app with a real English/
+   Dutch language switch (top-right; every UI string routes through one
+   `t(en, nl)` call keyed off `st.session_state.lang` — not both languages
+   shown inline at once) across seven tabs: Overview, **Field Explorer**,
+   Land & Crops, **Trends & Climate**, Environment & Energy, Water, and a
+   Business case tab spelling out who'd actually pay for this and what the
+   real remaining data gaps are. Genuinely Dutch data values (BRP crop and
+   category names) stay Dutch regardless of the switch — those are real
+   registry records, not UI chrome to translate. Everything reads from
+   `data/processed/stats.json` (each stage writes its own summary there via
+   `src/statsutil.py` — nothing is recomputed for display).
+
+   **Trends & Climate** is the 22-year analysis tab: the NDVI and NDWI
+   trend charts (colour-coded by sensor, validated CVD-safe palette), the
+   three August weather charts as small multiples (never one dual-axis
+   panel combining unrelated scales — the dataviz method's #1 flagged
+   anti-pattern), and a diverging correlation-coefficient chart with the
+   full honest write-up of what the correlation does and doesn't show.
 
    **Field Explorer** is the interactive centrepiece: every one of the
    3,787 BRP parcels is individually clickable, recoloured live by whatever
-   you pick from a dropdown (category, crop, NDVI 2025, or NDVI change
-   2024→2025), and clicking one shows its real crop name, area, and a
+   you pick from a dropdown (category, crop family, NDVI 2025, or NDVI
+   change 2024→2025), and clicking one shows its real crop name, area, and a
    two-year NDVI bar chart for that specific field (`src/brp_zonal.py`
    computes real per-parcel NDVI via a vectorised zonal-stats pass, not a
    per-polygon loop). The click-to-inspect mechanism does a point-in-polygon
@@ -111,8 +141,25 @@ or open `outputs/bergendal_map.html` directly in a browser for just the map.
    plain (non-Draw) GeoJson layer turned out to expose only geometry and
    click coordinates, not feature properties, so the reliable path is
    `last_object_clicked` (lat/lng) → `geopandas` `.contains()` against the
-   source data. Clicking also samples the AHN elevation/canopy-height and
-   SAR backscatter rasters at that exact point (reprojecting the click
+   source data.
+
+   **Crop family colouring** (`classify_crop()` in `src/visualize.py`) sorts
+   every one of the AOI's 102 distinct real BRP crop names into one of eight
+   families by keyword — grassland, maize, cereals, root/bulb/tuber,
+   vegetables, fruit/orchard, cover/fodder/oilseed, nature/landscape/water —
+   plus an "other" catch-all that only 3% of parcels land in. 102 crops is
+   past what any palette can give distinguishable individual hues (a
+   choropleth's own hard cap is 3-4 fully-safe categories), so colour here
+   carries the *family* and an emoji icon + the exact crop name (tooltip,
+   click panel, and the map's own on-canvas legend) carries the specific
+   crop — composite encoding instead of a top-9-and-grey scheme. In crop-
+   family mode the icon also renders directly on the map at each field
+   >=0.3ha (not just on hover), clustered below zoom 15 (`folium.plugins.
+   MarkerCluster`) so 1,500+ markers don't turn into an unreadable pile at
+   municipality-wide zoom, and expanding to individual icons above it.
+
+   Clicking also samples the AHN elevation/canopy-height and SAR
+   backscatter rasters at that exact point (reprojecting the click
    coordinate into whatever CRS each raster actually uses), so the panel
    answers "what else do we know about this spot" beyond just the BRP record.
 

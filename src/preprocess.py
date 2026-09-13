@@ -84,10 +84,12 @@ def process(label: str) -> Path:
 
     clear_frac = valid.mean() * 100
     mean_ndvi = float(ndvi[valid == 1].mean()) if valid.any() else float("nan")
+    mean_ndwi = float(ndwi[valid == 1].mean()) if valid.any() else float("nan")
     print(f"[{label}] baseline={baseline_tag or '?'} offset={offset:.0f}  {valid.size:,} px  "
-          f"clear={clear_frac:.1f}%  mean NDVI (clear px)={mean_ndvi:.3f}")
+          f"clear={clear_frac:.1f}%  mean NDVI={mean_ndvi:.3f}  mean NDWI={mean_ndwi:.3f}")
     update_stats(f"optical_{label}", {
         "total_px": int(valid.size), "clear_pct": round(float(clear_frac), 1), "mean_ndvi": round(mean_ndvi, 3),
+        "mean_ndwi": round(mean_ndwi, 3),
         "source": "sentinel2", "platform": f"baseline {baseline_tag}" if baseline_tag else "sentinel-2",
     })
     return out_path

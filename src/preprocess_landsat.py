@@ -1,8 +1,9 @@
 """
-Turns a raw 3-band Landsat Collection 2 Level-2 stack (red, nir08, qa_pixel)
-into the same NDVI/clear-ground summary preprocess.py produces for
-Sentinel-2 -- writes to the same `optical_{label}` stats section, so
-ndvi_trend.py can read a Landsat year and a Sentinel-2 year identically.
+Turns a raw 4-band Landsat Collection 2 Level-2 stack (red, green, nir08,
+qa_pixel) into the same NDVI/NDWI/clear-ground summary preprocess.py
+produces for Sentinel-2 -- writes to the same `optical_{label}` stats
+section, so ndvi_trend.py can read a Landsat year and a Sentinel-2 year
+identically.
 
 Reflectance scale is fixed across Collection 2 Level 2 regardless of
 platform (Landsat 4-9): reflectance = DN * 0.0000275 - 0.2. Clear-ground
@@ -33,7 +34,7 @@ def _to_reflectance(dn: np.ndarray) -> np.ndarray:
 
 def process(label: str, stats_key: str | None = None) -> Path:
     """Reads data/raw/{label}.tif, writes data/processed/{label}_indices.tif
-    (NDVI, valid) and an `optical_{stats_key or label}` stats entry.
+    (NDVI, NDWI, valid) and an `optical_{stats_key or label}` stats entry.
 
     `stats_key` lets a Landsat fetch stored under e.g. "summer_2013_landsat"
     (kept distinct on disk so it's never confused with a Sentinel-2 fetch
@@ -43,31 +44,35 @@ def process(label: str, stats_key: str | None = None) -> Path:
     stats_key = stats_key or label
     src_path = RAW_DIR / f"{label}.tif"
     with rasterio.open(src_path) as src:
-        red, nir, qa = src.read(1), src.read(2), src.read(3)
+        red, green, nir, qa = src.read(1), src.read(2), src.read(3), src.read(4)
         profile = src.profile.copy()
         platform = src.tags().get("platform", "?")
 
     valid = (((qa & QA_CLEAR_BIT) != 0) & ((qa & QA_FILL_BIT) == 0)).astype(np.uint8)
 
-    red_r, nir_r = _to_reflectance(red), _to_reflectance(nir)
+    red_r, green_r, nir_r = _to_reflectance(red), _to_reflectance(green), _to_reflectance(nir)
     with np.errstate(divide="ignore", invalid="ignore"):
         ndvi = (nir_r - red_r) / (nir_r + red_r)
+        ndwi = (green_r - nir_r) / (green_r + nir_r)
     ndvi = np.nan_to_num(ndvi, nan=0.0)
+    ndwi = np.nan_to_num(ndwi, nan=0.0)
 
-    stack = np.stack([ndvi, valid.astype(np.float32)])
+    stack = np.stack([ndvi, ndwi, valid.astype(np.float32)])
     out_profile = profile.copy()
-    out_profile.update(count=2, dtype="float32")
+    out_profile.update(count=3, dtype="float32")
     out_path = PROC_DIR / f"{label}_indices.tif"
     with rasterio.open(out_path, "w", **out_profile) as dst:
         dst.write(stack)
-        dst.descriptions = ("NDVI", "valid")
+        dst.descriptions = ("NDVI", "NDWI", "valid")
 
     clear_frac = float(valid.mean() * 100)
     mean_ndvi = float(ndvi[valid == 1].mean()) if valid.any() else float("nan")
+    mean_ndwi = float(ndwi[valid == 1].mean()) if valid.any() else float("nan")
     print(f"[{label}] platform={platform} (30m, Landsat)  {valid.size:,} px  "
-          f"clear={clear_frac:.1f}%  mean NDVI (clear px)={mean_ndvi:.3f}")
+          f"clear={clear_frac:.1f}%  mean NDVI={mean_ndvi:.3f}  mean NDWI={mean_ndwi:.3f}")
     update_stats(f"optical_{stats_key}", {
-        "total_px": int(valid.size), "clear_pct": round(clear_frac, 1), "mean_ndvi": round(mean_ndvi, 3),
+        "total_px": int(valid.size), "clear_pct": round(clear_frac, 1),
+        "mean_ndvi": round(mean_ndvi, 3), "mean_ndwi": round(mean_ndwi, 3),
         "source": "landsat", "platform": platform,
     })
     return out_path
