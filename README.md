@@ -122,8 +122,15 @@ or open `outputs/bergendal_map.html` directly in a browser for just the map.
    `data/processed/stats.json` (each stage writes its own summary there via
    `src/statsutil.py` — nothing is recomputed for display).
 
-   **Trends & Climate** is the 22-year analysis tab: the NDVI and NDWI
-   trend charts (colour-coded by sensor, validated CVD-safe palette), the
+   **Trends & Climate** is the 22-year analysis tab: a **Year Explorer**
+   widget up top (`st.select_slider`) that pulls every number this
+   pipeline has for one chosen year — NDVI, NDWI, sensor/platform, that
+   August's rainfall/temperature/sunshine, crop-rotation coverage, and
+   flagged notes (hottest/driest/wettest August on record, the 2018
+   drought, the Jan 2024 flood) — into one place, and rings that year on
+   the trend charts below it so the selection stays visible in context
+   rather than just as a number; then the NDVI and NDWI trend charts
+   themselves (colour-coded by sensor, validated CVD-safe palette), the
    three August weather charts as small multiples (never one dual-axis
    panel combining unrelated scales — the dataviz method's #1 flagged
    anti-pattern), and a diverging correlation-coefficient chart with the
@@ -132,9 +139,11 @@ or open `outputs/bergendal_map.html` directly in a browser for just the map.
    **Field Explorer** is the interactive centrepiece: every one of the
    3,787 BRP parcels is individually clickable, recoloured live by whatever
    you pick from a dropdown (category, crop family, NDVI 2025, or NDVI
-   change 2024→2025), and clicking one shows its real crop name, area, and a
-   two-year NDVI bar chart for that specific field (`src/brp_zonal.py`
-   computes real per-parcel NDVI via a vectorised zonal-stats pass, not a
+   change 2024→2025), and clicking one shows its real crop name, area, a
+   two-year NDVI bar chart, and — where `crop_rotation.py` has run — its
+   real 2020–2025 crop-rotation history with change markers, not just this
+   year's snapshot (`src/brp_zonal.py` computes real per-parcel NDVI via a
+   vectorised zonal-stats pass, not a
    per-polygon loop). The click-to-inspect mechanism does a point-in-polygon
    lookup against the precise geometry rather than trying to read properties
    back off the rendered map layer — streamlit-folium's click return for a
@@ -193,6 +202,58 @@ pipeline alone can't fill:
   NH3/nitrogen deposition, the figure Dutch farm nitrogen permitting
   actually runs on — that lives in RIVM's separate AERIUS/GDN product as an
   annual grid download, not a queryable API. Flagged, not faked.
+
+### Crop rotation: five more years of BRP, matched field-to-field
+
+`fetch_brp.py` only ever gave one year (2025). Real rotation needs
+history, and the BRP WFS's own `GetCapabilities` confirms it only ever
+serves the current year — checked directly, not assumed. The only
+historical source is PDOK's ATOM feed of whole-Netherlands GeoPackages
+(2.5–3GB *each*, one per year), so **`src/fetch_brp_history.py`** reads
+each one over HTTP via GDAL's `/vsicurl/` virtual filesystem with a
+bounding-box filter instead of downloading it — the GeoPackage's own
+spatial index answers a bbox query in a few minutes and a few MB of real
+transfer, confirmed directly (2,126 features in ~3 minutes for one test
+year), not a multi-gigabyte pull. One-time, standalone step (not part of
+the default `run_pipeline.py` pass — see its docstring), fetching
+2020–2024 to sit alongside 2025.
+
+**`src/crop_rotation.py`** then matches every 2025 field to its
+best-overlapping parcel in each earlier year (max shared area via
+`geopandas.overlay`, accepted only past 30% overlap — BRP re-registers
+parcel boundaries every year, so there's no stable ID to join on) and
+writes each field's real crop sequence back onto `brp_parcels.geojson`
+(`rotation_json`, read by the dashboard's Field Explorer) plus a
+municipality-wide summary (top transitions, % stable vs. rotating).
+
+**Two real data-quality bugs found and fixed while building it:** the
+historical archive has trailing whitespace on some crop names in
+2023/2024 that the live registry doesn't, and spells maize with a
+diaeresis ("Maïs") where the live registry drops it ("Mais") — both read
+as a false crop change on every matching field before being normalized
+away (`normalize_crop()`: strip, NFKD-decompose accents, casefold — used
+only for *comparison*; the display still shows each year's own original
+spelling). Fixing both moved the "never changed crop" rate from an
+implausible 4% to a believable 38%. **A real data-coverage limit, left
+visible rather than hidden:** parcel counts jump from ~1,750 (2020–2022)
+to ~4,100+ (2023–2025) at roughly constant total area — BRP started
+registering landscape elements (hedgerows, ditches) as their own small
+parcels around 2023, so a small 2025 hedge parcel matching a much larger
+2020 field is that schema change surfacing in the match, not a real
+event; each match's own `overlap_frac` is kept in the data so this is
+checkable per field.
+
+**What it found:** genuine, textbook Dutch arable rotation — winter
+wheat ↔ sugar beet and potatoes ↔ wheat are the two most common
+transitions, real crop-management signal rather than noise. One
+individually-checked field: wheat (2020) → maize (2021) → sugar beet
+(2022) → wheat (2023) → maize (2024) → potatoes (2025), a full six-year
+intensive arable cycle, visible for that one specific parcel in Field
+Explorer. `"Grasland, tijdelijk" → "Grasland, blijvend"` (temporary → permanent
+pasture status) is the single most common "transition" — a registry
+reclassification, not a physical land-use change, called out explicitly
+in the dashboard rather than left to read as farmers converting cropland
+to pasture at that scale.
 
 ## What it found (first pass)
 

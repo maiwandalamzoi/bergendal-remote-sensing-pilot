@@ -18,6 +18,15 @@ Landsat years), flood_event (9 Sentinel-1 scenes), and fetch_weather (one
 20-year daily pull from KNMI) -- can also be run standalone
 (`python src/ndvi_trend.py`, `python src/flood_event.py`,
 `python src/fetch_weather.py`) without repeating everything else.
+
+`fetch_brp_history.py` (5 more years of BRP, 2020-2024, read one at a time
+off PDOK's nationwide GeoPackages via HTTP range requests -- ~3 min/year)
+is even heavier and deliberately NOT run by default here: past years'
+registrations don't change, so it's a one-time pull, not something that
+needs to stay current on every pass. Run it yourself once
+(`python src/fetch_brp_history.py`) before the first `crop_rotation.py`
+run; after that this script's own `crop_rotation.py` step re-runs fine
+since it only reads what's already on disk.
 """
 import sys
 from pathlib import Path
@@ -34,6 +43,8 @@ from fetch_air_quality import fetch_all as fetch_air_quality_all
 from preprocess import process
 from preprocess_sar import process as process_sar, cross_check_water, flood_extent
 from landcover_ml import classify, ndvi_change
+from crop_rotation import run as run_crop_rotation
+from fetch_brp_history import HISTORY_YEARS as ROTATION_HISTORY_YEARS
 from ndvi_trend import build_trend as build_ndvi_trend
 from flood_event import run as run_flood_event
 from fetch_weather import run as fetch_weather
@@ -80,6 +91,14 @@ def main():
     cross_check_water("sar_2025", "summer_2025")
     flood_extent("sar_highwater_2024", "sar_2025")
     compute_brp_zonal_ndvi()  # per-field NDVI for the dashboard's Field Explorer tab
+
+    raw_dir = Path(__file__).resolve().parent / "data" / "raw"
+    if all((raw_dir / f"brp_parcels_{y}.geojson").exists() for y in ROTATION_HISTORY_YEARS):
+        print("\n== 3a. crop rotation: match 2025 fields back to 2020-2024 (historical BRP already on disk) ==")
+        run_crop_rotation()
+    else:
+        print("\n== 3a. crop rotation: SKIPPED -- run `python src/fetch_brp_history.py` once first "
+              "(one-time, ~15min pull of 5 historical BRP years) ==")
 
     print("\n== 3b. ndvi trend: 2005-present August NDVI+NDWI series (fetches missing years) ==")
     build_ndvi_trend()

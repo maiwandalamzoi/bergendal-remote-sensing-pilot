@@ -14,6 +14,7 @@ Needs run_pipeline.py plus src/fetch_cbs.py, src/fetch_brp.py and
 src/fetch_air_quality.py to have been run at least once.
 """
 import datetime
+import json
 import sys
 from pathlib import Path
 
@@ -37,10 +38,12 @@ COLOR_WATER = "#3B6E8A"    # matches --river, reused for single-series water/flo
 COLOR_DROUGHT = "#C03B2E"  # matches the flood "newly flooded" red -- reused here for "stress"
 COLOR_TEMP = "#eb6834"
 COLOR_SUN = "#eda100"
+COLOR_SELECTED = "#4a3aa7"  # Year Explorer highlight ring -- distinct from the fixed 2018-drought callout
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 from statsutil import load_stats
 from visualize import make_map, field_explorer_map, FIELD_COLOR_MODES, CROP_FAMILIES, classify_crop
+from crop_rotation import normalize_crop
 
 BRP_PATH = Path(__file__).resolve().parent / "data" / "raw" / "brp_parcels.geojson"
 
@@ -203,6 +206,7 @@ flood = stats.get("flood_extent", {})
 flood_event = stats.get("flood_event", {})
 weather = stats.get("weather", {})
 climate_corr = stats.get("climate_correlation", {})
+crop_rotation = stats.get("crop_rotation", {})
 ahn = stats.get("ahn", {})
 landcover = stats.get("landcover_summer_2025", {}).get("class_pct", {})
 cbs = stats.get("cbs", {})
@@ -232,12 +236,28 @@ def m(section: dict, key: str, fmt: str = "{:,.0f}") -> str:
 CHART_AXIS_KW = dict(grid=False, domainColor="#CBD3C1", labelColor="#51604F", titleColor="#51604F")
 
 
-def ndvi_trend_chart(trend: dict) -> alt.LayerChart:
+def _year_highlight_layers(df: pd.DataFrame, value_col: str, highlight_year: int | None) -> list:
+    """A ring + light vertical guide at the Year Explorer's selected year --
+    reused on both the NDVI and NDWI charts so picking a year in the
+    widget below visibly ties back to both trends at once."""
+    if highlight_year is None or highlight_year not in df["year"].values:
+        return []
+    sel = df[df["year"] == highlight_year]
+    rule = alt.Chart(sel).mark_rule(color=COLOR_SELECTED, strokeWidth=1, strokeDash=[3, 3], opacity=0.6).encode(x="year:O")
+    ring = alt.Chart(sel).mark_point(size=260, filled=False, strokeWidth=2.5, color=COLOR_SELECTED).encode(
+        x="year:O", y=f"{value_col}:Q",
+    )
+    return [rule, ring]
+
+
+def ndvi_trend_chart(trend: dict, highlight_year: int | None = None) -> alt.LayerChart:
     """22-year NDVI trend, coloured by sensor provenance (Landsat vs
     Sentinel-2 — a real methodological seam documented in the README, not
     noise to hide) with a direct callout on 2018: the documented European
     drought year, and this series' single lowest point — corroborating
-    evidence the data is tracking something real, not an artifact."""
+    evidence the data is tracking something real, not an artifact.
+    `highlight_year` rings whichever year the Year Explorer widget has
+    selected, tying that widget back to the chart."""
     source_label = {"landsat": "Landsat (30m)", "sentinel2": "Sentinel-2 (10m)"}
     df = pd.DataFrame({
         "year": trend["years"],
@@ -276,6 +296,7 @@ def ndvi_trend_chart(trend: dict) -> alt.LayerChart:
             text=t("↓ 2018 drought", "↓ droogte 2018"), dy=18, fontSize=11, color=COLOR_DROUGHT, fontWeight="bold",
         ).encode(x="year:O", y="NDVI:Q")
         layers += [marker, callout]
+    layers += _year_highlight_layers(df, "NDVI", highlight_year)
 
     return (
         alt.layer(*layers)
@@ -285,7 +306,7 @@ def ndvi_trend_chart(trend: dict) -> alt.LayerChart:
     )
 
 
-def ndwi_trend_chart(trend: dict) -> alt.LayerChart:
+def ndwi_trend_chart(trend: dict, highlight_year: int | None = None) -> alt.LayerChart:
     """Same treatment as the NDVI trend -- source-coloured, same two
     validated hues -- for NDWI (green-NIR): consistently negative here
     since the AOI is mostly land, not water; a *less* negative value means
@@ -311,8 +332,9 @@ def ndwi_trend_chart(trend: dict) -> alt.LayerChart:
         tooltip=[alt.Tooltip("year:O", title=t("Year", "Jaar")), alt.Tooltip("NDWI:Q", format=".3f"),
                  alt.Tooltip("source:N", title=t("Source", "Bron")), alt.Tooltip("platform:N", title=t("Platform", "Platform"))],
     )
+    layers = [line, points] + _year_highlight_layers(df, "NDWI", highlight_year)
     return (
-        alt.layer(line, points)
+        alt.layer(*layers)
         .properties(height=240)
         .configure_view(strokeWidth=0)
         .configure_axis(**CHART_AXIS_KW)
@@ -355,6 +377,21 @@ def correlation_chart(correlations: dict) -> alt.Chart:
     ).properties(height=26 * len(df) + 20)
     zero_line = alt.Chart(pd.DataFrame({"x": [0]})).mark_rule(color="#51604F", strokeWidth=1).encode(x="x:Q")
     return alt.layer(chart, zero_line).configure_view(strokeWidth=0).configure_axis(**CHART_AXIS_KW)
+
+
+def rotation_transitions_chart(top_transitions: dict) -> alt.Chart:
+    """Top crop-to-crop transitions across the matched 2020-2025 window --
+    one categorical axis (each transition is its own identity, no shared
+    hue needed since there's no cross-chart legend to keep consistent) so
+    a single accent colour is enough; count carries the magnitude."""
+    df = pd.DataFrame({"pair": list(top_transitions.keys()), "count": list(top_transitions.values())})
+    df = df.sort_values("count", ascending=True)
+    chart = alt.Chart(df).mark_bar(color=COLOR_SENTINEL2, cornerRadiusEnd=3, height=18).encode(
+        x=alt.X("count:Q", title=t("Fields", "Percelen")),
+        y=alt.Y("pair:N", title=None, sort=None, axis=alt.Axis(labelLimit=340)),
+        tooltip=[alt.Tooltip("pair:N", title=t("Transition", "Overgang")), alt.Tooltip("count:Q", title=t("Fields", "Percelen"))],
+    ).properties(height=26 * len(df) + 20)
+    return chart.configure_view(strokeWidth=0).configure_axis(**CHART_AXIS_KW)
 
 
 def crop_family_chart(gdf: gpd.GeoDataFrame) -> alt.Chart:
@@ -539,6 +576,37 @@ with tab_explorer:
                     "Geen NDVI-trend voor dit perceel (bewolkt gemaskeerd in een van beide jaren).",
                 ))
 
+            rot_raw = row.get("rotation_json")
+            if rot_raw is not None and (isinstance(rot_raw, dict) or (isinstance(rot_raw, str) and rot_raw)):
+                rot = rot_raw if isinstance(rot_raw, dict) else json.loads(rot_raw)
+                years_present = sorted(y for y, c in rot.items() if c)
+                st.markdown(f"**{t('Crop rotation', 'Gewasrotatie')} ({years_present[0]}–{years_present[-1]})**" if years_present else "")
+                prev_norm = None
+                for y in sorted(rot.keys()):
+                    crop = rot[y]
+                    if crop is None:
+                        st.caption(f"{y}: {t('not registered / no match this year', 'niet geregistreerd / geen match dit jaar')}")
+                        prev_norm = None
+                        continue
+                    norm = normalize_crop(crop)
+                    changed = prev_norm is not None and norm != prev_norm
+                    marker = "🔄 " if changed else ""
+                    st.write(f"{marker}**{y}:** {crop}")
+                    prev_norm = norm
+                if not row.get("rotation_changed", True) and row.get("rotation_n_years", 0) >= 2:
+                    st.caption(t(
+                        "No crop change across the years matched above.",
+                        "Geen gewasverandering over de hierboven gematchte jaren.",
+                    ))
+                st.caption(t(
+                    "Matched year-to-year by which historical parcel overlaps this one most (≥30% of its "
+                    "area) — boundary redraws mean not every field matches every year. See Land & Crops for "
+                    "the municipality-wide rotation picture and its caveats.",
+                    "Jaar-op-jaar gematcht op het perceel dat het meest overlapt (≥30% van de oppervlakte) "
+                    "— door herziene perceelgrenzen matcht niet elk veld elk jaar. Zie Land & Gewassen voor "
+                    "het gemeentebrede rotatiebeeld en de kanttekeningen daarbij.",
+                ))
+
             st.markdown(f"**{t('At this exact point', 'Op dit exacte punt')}**")
             samples = point_samples(click["lat"], click["lng"])
             s1, s2 = st.columns(2)
@@ -642,6 +710,65 @@ with tab_land:
         "veehouderijen zijn de bedrijven die een stikstofvergunning-product daadwerkelijk zou bedienen.",
     ), icon="🌾")
 
+    if crop_rotation.get("top_transitions"):
+        st.divider()
+        _ry0, _ry1 = crop_rotation["years"][0], crop_rotation["years"][-1]
+        st.subheader(t(f"Crop rotation, {_ry0}–{_ry1}", f"Gewasrotatie, {_ry0}–{_ry1}"))
+        st.caption(t(
+            "Each 2025 field matched back to its best-overlapping parcel in every earlier year "
+            f"(≥{crop_rotation.get('min_overlap_frac', 0.3):.0%} shared area) — real per-field history "
+            "from BRP's own archive, not simulated. Click any field in Field Explorer for its individual "
+            "timeline.",
+            "Elk perceel van 2025 teruggekoppeld aan het meest overlappende perceel in elk eerder jaar "
+            f"(≥{crop_rotation.get('min_overlap_frac', 0.3):.0%} gedeelde oppervlakte) — echte "
+            "geschiedenis per perceel uit het eigen BRP-archief, niet gesimuleerd. Klik op een perceel in "
+            "Perceelverkenner voor de individuele tijdlijn.",
+        ))
+        rc1, rc2, rc3 = st.columns(3)
+        rc1.metric(t("Fields with full history", "Percelen met volledige historie"),
+                   f"{crop_rotation.get('n_parcels_full_history', 0):,}")
+        rc2.metric(t("Never changed crop", "Nooit van gewas gewisseld"),
+                   f"{crop_rotation.get('pct_stable_full_history', 0):.0f}%")
+        rc3.metric(t("Actively rotated", "Actief geroteerd"),
+                   f"{100 - crop_rotation.get('pct_stable_full_history', 0):.0f}%")
+
+        st.markdown(f"**{t('Most common crop-to-crop transitions', 'Meest voorkomende gewasovergangen')}**")
+        st.altair_chart(rotation_transitions_chart(crop_rotation["top_transitions"]), use_container_width=True)
+        st.caption(t(
+            "The top transitions are textbook Dutch arable rotation — winter wheat ↔ sugar beet, potatoes "
+            "↔ wheat — real crop-management signal, not noise. 'Grasland, tijdelijk → Grasland, blijvend' "
+            "is a registry reclassification (temporary → permanent pasture status) rather than a physical "
+            "land-use change, and is counted as a transition here since the *label* genuinely changed; "
+            "worth knowing before reading it as farmers converting cropland to pasture at that scale.",
+            "De belangrijkste overgangen zijn schoolvoorbeelden van Nederlandse bouwlandrotatie — "
+            "wintertarwe ↔ suikerbieten, aardappelen ↔ tarwe — een echt teeltsignaal, geen ruis. "
+            "'Grasland, tijdelijk → Grasland, blijvend' is een registratieherclassificatie (status "
+            "tijdelijk → blijvend grasland) in plaats van een fysieke landgebruiksverandering, en telt "
+            "hier wel mee als overgang omdat het *label* daadwerkelijk verandert — goed om te weten "
+            "voordat je dit leest als boeren die op die schaal bouwland omzetten naar grasland.",
+        ))
+        st.markdown(t(
+            "**Two real data bugs found and fixed building this** (see `src/crop_rotation.py`): BRP's "
+            "historical archive has trailing whitespace on some crop names in 2023/2024 that the current "
+            "registry doesn't, and spells maize with a diaeresis (\"Maïs\") where the live registry drops "
+            "it (\"Mais\") — both would have registered as false crop changes on every matching field "
+            "before being normalized away. **A genuine data-coverage limit, not a bug:** parcel counts "
+            "jump from ~1,750 (2020-2022) to ~4,100+ (2023-2025) at roughly constant area — BRP started "
+            "registering landscape elements (hedgerows, ditches) as their own small parcels around 2023, "
+            "so a small 2025 hedge parcel matching a much larger 2020 field is that schema change showing "
+            "up, not a real event.",
+            "**Twee echte databugs gevonden en opgelost tijdens de bouw** (zie `src/crop_rotation.py`): "
+            "het historische BRP-archief heeft in 2023/2024 een spatie achter sommige gewasnamen die het "
+            "huidige register niet heeft, en spelt mais met een trema (\"Maïs\") waar het live register "
+            "dat weglaat (\"Mais\") — beide zouden bij elk overeenkomend perceel als valse "
+            "gewasverandering zijn geregistreerd zonder normalisatie. **Een echte data-dekkingsgrens, "
+            "geen bug:** het aantal percelen springt van ~1.750 (2020-2022) naar ~4.100+ (2023-2025) bij "
+            "een vrijwel gelijk blijvend oppervlak — BRP is rond 2023 landschapselementen (heggen, sloten) "
+            "als eigen kleine percelen gaan registreren, dus een klein heg-perceel uit 2025 dat matcht met "
+            "een veel groter perceel uit 2020 is die schemawijziging die zichtbaar wordt, geen echte "
+            "gebeurtenis.",
+        ))
+
     st.subheader(t("Forest & nature", "Bos & natuur"))
     nature_brp = cat_ha.get("Natuurterrein", 0)
     forest_satellite_pct = sum(v for k, v in landcover.items() if "vegetation" in k.lower())
@@ -673,7 +800,69 @@ with tab_climate:
         "naast elkaar getoond, maar daadwerkelijk gecorreleerd.",
     ))
 
+    sel_year = None
     if trend.get("years"):
+        st.markdown("#### " + t("🔎 Year Explorer — pick a year", "🔎 Jaarverkenner — kies een jaar"))
+        st.caption(t(
+            "Every number this pipeline has for one specific year, gathered in one place — the charts "
+            "below ring whichever year is picked here, so it's visible in context, not just as a number.",
+            "Alle cijfers die deze pipeline voor één specifiek jaar heeft, op één plek — de grafieken "
+            "hieronder markeren het gekozen jaar, zodat het in context zichtbaar is, niet alleen als getal.",
+        ))
+        _years = trend["years"]
+        sel_year = st.select_slider(t("Year", "Jaar"), options=_years, value=_years[-1], key="year_explorer")
+        _idx = _years.index(sel_year)
+        _source_label = {"landsat": "Landsat (30m)", "sentinel2": "Sentinel-2 (10m)"}
+
+        yc1, yc2, yc3, yc4 = st.columns(4)
+        yc1.metric("NDVI", f"{trend['mean_ndvi'][_idx]:.3f}")
+        _ndwi_series = trend.get("mean_ndwi") or [None] * len(_years)
+        _ndwi_val = _ndwi_series[_idx] if _idx < len(_ndwi_series) else None
+        yc2.metric("NDWI", f"{_ndwi_val:.3f}" if _ndwi_val is not None else "n/a")
+        yc3.metric(t("Sensor", "Sensor"), _source_label.get(trend["source"][_idx], trend["source"][_idx]))
+        yc4.metric(t("Cloud-free coverage", "Wolkenvrije dekking"), f"{trend['clear_pct'][_idx]:.0f}%")
+
+        _aug = weather.get("august", {})
+        if sel_year in _aug.get("years", []):
+            _widx = _aug["years"].index(sel_year)
+            wc1, wc2, wc3 = st.columns(3)
+            wc1.metric(t("August rainfall", "Augustusneerslag"), f"{_aug['total_precip_mm'][_widx]:.0f} mm")
+            wc2.metric(t("August mean temp", "Gem. augustustemperatuur"), f"{_aug['mean_temp_c'][_widx]:.1f}°C")
+            wc3.metric(t("August sunshine", "Augustus zonuren"), f"{_aug['total_sunshine_h'][_widx]:.0f} h")
+        else:
+            st.caption(t(f"No weather record loaded for {sel_year} yet — run `src/fetch_weather.py`.",
+                          f"Nog geen weersdata geladen voor {sel_year} — draai `src/fetch_weather.py`."))
+
+        _matched_by_year = crop_rotation.get("parcels_matched_by_year", {})
+        if str(sel_year) in _matched_by_year:
+            _ref_year = crop_rotation.get("years", [None])[-1]
+            _n_total = brp.get("n_parcels", 0)
+            st.caption(t(
+                f"Crop rotation: {_matched_by_year[str(sel_year)]:,} of {_ref_year}'s {_n_total:,} fields "
+                f"have a matched registered crop for {sel_year} — see Land & Crops for the full rotation picture.",
+                f"Gewasrotatie: {_matched_by_year[str(sel_year)]:,} van de {_n_total:,} percelen van "
+                f"{_ref_year} hebben een gematcht geregistreerd gewas voor {sel_year} — zie Land & Gewassen "
+                "voor het volledige rotatiebeeld.",
+            ))
+
+        _notes = []
+        if sel_year == 2018:
+            _notes.append(t("📉 Documented 2018 Northwestern-Europe drought — this series' single lowest NDVI year.",
+                             "📉 Gedocumenteerd droogtejaar 2018 in Noordwest-Europa — laagste NDVI van deze hele reeks."))
+        if sel_year in _aug.get("years", []):
+            _widx = _aug["years"].index(sel_year)
+            if _aug["mean_temp_c"][_widx] == max(_aug["mean_temp_c"]):
+                _notes.append(t("🌡️ Hottest August in this whole 22-year weather record.", "🌡️ Heetste augustus uit deze hele 22-jarige weersreeks."))
+            if _aug["total_precip_mm"][_widx] == min(_aug["total_precip_mm"]):
+                _notes.append(t("🏜️ Driest August in this whole 22-year weather record.", "🏜️ Droogste augustus uit deze hele 22-jarige weersreeks."))
+            if _aug["total_precip_mm"][_widx] == max(_aug["total_precip_mm"]):
+                _notes.append(t("🌧️ Wettest August in this whole 22-year weather record.", "🌧️ Natste augustus uit deze hele 22-jarige weersreeks."))
+        if sel_year == 2024:
+            _notes.append(t("🌊 January this year: the documented Rhine/Waal high water this pipeline's flood analysis covers — see the Water tab.",
+                             "🌊 Januari dit jaar: het gedocumenteerde hoogwater van Rijn/Waal dat de overstromingsanalyse van deze pipeline behandelt — zie het tabblad Water."))
+        for _n in _notes:
+            st.info(_n)
+
         st.markdown("#### " + t("Vegetation indices · NDVI & NDWI", "Vegetatie-indices · NDVI & NDWI"))
         st.caption(t(
             "Two sensors, one series: Landsat (30m) before Sentinel-2 L2A coverage gets reliable here, "
@@ -685,7 +874,7 @@ with tab_climate:
             "minst bewolkte datum van die augustus, dus echte fenologische/weersruis zit in de lijn naast "
             "elke trend; beweeg over een punt voor het platform en de onbewolkte dekking van die datum.",
         ))
-        st.altair_chart(ndvi_trend_chart(trend), use_container_width=True)
+        st.altair_chart(ndvi_trend_chart(trend, highlight_year=sel_year), use_container_width=True)
         st.caption(t(
             f"Net {trend.get('net_change', 0):+.3f} NDVI over {len(trend['years']) - 1} years "
             f"({trend.get('slope_per_year', 0):+.4f}/yr) — noisy year to year; read the shape, not the "
@@ -699,7 +888,7 @@ with tab_climate:
         ))
 
         if trend.get("mean_ndwi") and any(v is not None for v in trend["mean_ndwi"]):
-            st.altair_chart(ndwi_trend_chart(trend), use_container_width=True)
+            st.altair_chart(ndwi_trend_chart(trend, highlight_year=sel_year), use_container_width=True)
             st.caption(t(
                 "NDWI (green minus near-infrared): consistently negative here since the AOI is mostly "
                 "land, not water — a less negative value means relatively wetter or less-vegetated "
