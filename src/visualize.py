@@ -164,6 +164,47 @@ def landcover_png(label: str) -> tuple[Path, list, dict]:
     return out_path, _bounds_wgs84(profile), id_to_name
 
 
+# Class ids from landcover_trend.py's CHANGE_* constants, kept as plain
+# ints here (not imported) so visualize.py doesn't need landcover_trend's
+# own heavier dependency chain just for five colours.
+LANDCOVER_CHANGE_COLORS = {
+    0: (0, 0, 0, 0),          # no data
+    1: (0, 0, 0, 0),          # no change -- transparent on purpose, so
+                               # only the real change stands out rather
+                               # than a solid colour wash over 80% of the
+                               # municipality that didn't change class.
+    2: (0xC0, 0x3B, 0x2E, 230),  # forest loss -- same red used for
+                               # "newly flooded" elsewhere on this map;
+                               # both mean "this got worse."
+    3: (0x1B, 0xAF, 0x7A, 230),  # forest gain -- CROP_FAMILIES' own
+                               # grassland green, reused for consistency.
+    4: (0xED, 0xA1, 0x00, 220),  # built-up growth
+    5: (0x9A, 0x8F, 0xC2, 180),  # other change -- muted, deliberately
+                               # less prominent than the three categories
+                               # this map exists to answer.
+}
+
+
+def landcover_change_png(first_year: int, last_year: int) -> tuple[Path, list]:
+    """The spatial "where did the forest actually go" map -- see
+    landcover_trend.build_change_map()'s own docstring for the method and
+    why this is restricted to the Sentinel-2 era (2018-present), not the
+    fuller 2005-present window the NDVI trend chart covers elsewhere in
+    this dashboard."""
+    path = PROC_DIR / f"landcover_change_{first_year}_{last_year}.tif"
+    with rasterio.open(path) as src:
+        classes = src.read(1)
+        profile = src.profile.copy()
+
+    rgba = np.zeros((*classes.shape, 4), dtype=np.uint8)
+    for cid, rgba_val in LANDCOVER_CHANGE_COLORS.items():
+        rgba[classes == cid] = rgba_val
+
+    out_path = OUT_DIR / f"landcover_change_{first_year}_{last_year}.png"
+    Image.fromarray(rgba).save(out_path)
+    return out_path, _bounds_wgs84(profile)
+
+
 def ndvi_change_png(label_old: str, label_new: str) -> tuple[Path, list]:
     path = PROC_DIR / f"ndvi_change_{label_old}_to_{label_new}.tif"
     with rasterio.open(path) as src:
@@ -258,7 +299,7 @@ FIELD_COLOR_MODES = {
     "crop_family": ("Crop family", "Gewasfamilie"),
     "ndvi_2025": ("NDVI 2025 (health)", "NDVI 2025 (vitaliteit)"),
     "ndvi_change": ("NDVI change 2024→2025", "NDVI-verandering 2024→2025"),
-    "predicted_next_family": ("🔮 Predicted next crop (ML)", "🔮 Voorspeld volgend gewas (ML)"),
+    "predicted_next_family": ("Predicted next crop (ML)", "Voorspeld volgend gewas (ML)"),
 }
 
 
@@ -531,7 +572,7 @@ def field_explorer_map(color_by: str = "category", center: list | None = None, l
     tooltip_aliases = [
         ("Crop", "Gewas"), ("Category", "Categorie"), ("Area (ha)", "Oppervlakte (ha)"),
         ("NDVI 2025", "NDVI 2025"), ("NDVI Δ 2024→25", "NDVI Δ 2024→25"),
-        ("🔮 Predicted next crop", "🔮 Voorspeld volgend gewas"),
+        ("Predicted next crop", "Voorspeld volgend gewas"),
     ][:]
     aliases = [pair[i] for pair in tooltip_aliases]
     _feature_fields = ["_crop_display", "category", "_area_txt", "_ndvi25_txt", "_ndvi_chg_txt", "_pred_display"]
@@ -642,7 +683,7 @@ def field_explorer_map(color_by: str = "category", center: list | None = None, l
             f'border-radius:2px;flex-shrink:0;"></span><span>{icon} {label[i]}</span></div>'
             for color, icon, *label in CROP_FAMILIES.values()
         )
-        legend_title = ("🔮 Predicted next crop family (ML)", "🔮 Voorspeld volgend gewasfamilie (ML)")[i]
+        legend_title = ("Predicted next crop family (ML)", "Voorspeld volgend gewasfamilie (ML)")[i]
         _n_obs = load_stats().get("forecast", {}).get("crop_rotation", {}).get("n_transitions_observed", 0)
         legend_note = (
             f"Each field's most likely next-year family, from a transition matrix built on {_n_obs:,} "
@@ -806,6 +847,19 @@ def make_map(label_new: str = "summer_2025", label_old: str = "summer_2024", lan
     no2_path, no2_bounds = air_quality_png("no2")
     brp_path, brp_bounds, brp_colors = brp_png()
 
+    # "Where did the forest actually go" -- a real spatial pixel-change
+    # map, not just the aggregate hectare trend on the Trends & Climate/
+    # Forecast tabs. Restricted to whatever Sentinel-2-era window
+    # landcover_trend.build_change_map() actually built (2018-present in
+    # practice) -- see that function's own docstring for why this can't
+    # extend back to the 2005-era Landsat years without reprojecting to a
+    # common grid first, a real resolution limit, not an oversight.
+    lc_change_stats = load_stats().get("landcover_change_map", {})
+    lcc_first, lcc_last = lc_change_stats.get("first_year"), lc_change_stats.get("last_year")
+    lcc_path = lcc_bounds = None
+    if lcc_first and lcc_last:
+        lcc_path, lcc_bounds = landcover_change_png(lcc_first, lcc_last)
+
     village_geom_wgs84, village_bounds = _load_village(village)
 
     # "Snap and cut": once a village is picked, every raster layer above
@@ -830,6 +884,8 @@ def make_map(label_new: str = "summer_2025", label_old: str = "summer_2024", lan
         ndsm_path = _clip_to_village(ndsm_path, elev_bounds, village_geom_wgs84, vslug)
         no2_path = _clip_to_village(no2_path, no2_bounds, village_geom_wgs84, vslug)
         brp_path = _clip_to_village(brp_path, brp_bounds, village_geom_wgs84, vslug)
+        if lcc_path is not None:
+            lcc_path = _clip_to_village(lcc_path, lcc_bounds, village_geom_wgs84, vslug)
 
     if village_bounds:
         center = [(village_bounds[0][0] + village_bounds[1][0]) / 2, (village_bounds[0][1] + village_bounds[1][1]) / 2]
@@ -878,6 +934,12 @@ def make_map(label_new: str = "summer_2025", label_old: str = "summer_2024", lan
     folium.raster_layers.ImageOverlay(str(ndsm_path), bounds=elev_bounds, name=names[9], opacity=0.85, show=False).add_to(m)
     folium.raster_layers.ImageOverlay(str(no2_path), bounds=no2_bounds, name=names[10], opacity=0.75, show=False).add_to(m)
     folium.raster_layers.ImageOverlay(str(brp_path), bounds=brp_bounds, name=names[11], opacity=0.8, show=False).add_to(m)
+    if lcc_path is not None:
+        lcc_name = (f"Forest & land cover change, {lcc_first}→{lcc_last}",
+                    f"Bos & landgebruikverandering, {lcc_first}→{lcc_last}")[i]
+        folium.raster_layers.ImageOverlay(
+            str(lcc_path), bounds=lcc_bounds, name=lcc_name, opacity=0.9, show=False
+        ).add_to(m)
 
     folium.GeoJson(
         geometry_wgs84().__geo_interface__,
@@ -974,6 +1036,46 @@ def make_map(label_new: str = "summer_2025", label_old: str = "summer_2024", lan
     </div>
     """
     m.get_root().html.add_child(folium.Element(brp_legend_html))
+
+    if lcc_path is not None:
+        _lcc_ha = lc_change_stats.get("ha", {})
+        _lcc_rows_spec = [
+            (2, ("Forest loss", "Bosverlies")),
+            (3, ("Forest gain", "Bosaanwas")),
+            (4, ("Built-up growth", "Bebouwingsgroei")),
+            (5, ("Other change", "Overige verandering")),
+        ]
+        lcc_legend_rows = "".join(
+            f'<div style="display:flex;align-items:center;gap:6px;margin:2px 0;">'
+            f'<span style="width:12px;height:12px;background:rgb{LANDCOVER_CHANGE_COLORS[cid][:3]};'
+            f'display:inline-block;border-radius:2px;"></span>{label[i]}'
+            f'<span style="color:#888; margin-left:auto; padding-left:8px;">'
+            f'{_lcc_ha.get(label[0], 0):,.0f} ha</span></div>'  # `ha` dict keys are always the English name
+            for cid, label in _lcc_rows_spec
+        )
+        lcc_legend_title = (f"Forest & land cover change, {lcc_first}→{lcc_last}",
+                             f"Bos & landgebruikverandering, {lcc_first}→{lcc_last}")[i]
+        lcc_legend_note = (
+            "Forest loss/gain are the more spectrally stable, more trustworthy categories here (same "
+            "caveat as the hectare trend elsewhere in this dashboard); built-up growth and other change "
+            "inherit that series' real classifier year-to-year wobble. Unchanged ground (the large "
+            "majority) is left transparent on purpose, so only real change draws the eye.",
+            "Bosverlies/-aanwas zijn hier de spectraal stabielere, betrouwbaardere categorieën (dezelfde "
+            "kanttekening als bij de hectaretrend elders in dit dashboard); bebouwingsgroei en overige "
+            "verandering erven de echte jaar-op-jaar classifier-wiebel van die reeks. Ongewijzigde grond "
+            "(de grote meerderheid) is bewust transparant gelaten, zodat alleen echte verandering opvalt.",
+        )[i]
+        lcc_legend_html = f"""
+        <div style="position: fixed; bottom: 24px; left: 300px; z-index: 9999;
+                    background: white; padding: 10px 14px; border-radius: 8px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,.2); font-family: sans-serif; font-size: 12px;
+                    max-width: 250px;">
+          <div style="font-weight:600; margin-bottom:4px;">{lcc_legend_title}</div>
+          {lcc_legend_rows}
+          <div style="margin-top:6px; color:#666; font-size:10px; line-height:1.4;">{lcc_legend_note}</div>
+        </div>
+        """
+        m.get_root().html.add_child(folium.Element(lcc_legend_html))
 
     # Print/report block: a QGIS-print-composer-style title/scope/date/
     # source strip and a north arrow (see _report_header_element /

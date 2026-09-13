@@ -433,6 +433,55 @@ different reason (detecting whitespace/spelling-variant false-positive
 classify crop names from every historical year, not just 2025's — a case
 the dashboard's own existing `classify_crop()` calls never exercised.
 
+### Forest & land cover change: a real spatial map, not just a hectare number
+
+The Trends & Climate tab's own land-cover-trend chart (2018-present) only
+ever showed *how much* built-up/forest/agriculture/water changed, as an
+aggregate hectare series — not *where*. **`landcover_trend.build_change_map()`**
+answers that directly: every pixel that changed broad category between the
+first and last classified Sentinel-2 year is compared pixel-for-pixel
+(checked directly that both years share an identical transform/shape/CRS,
+not assumed) and labelled — forest loss, forest gain, built-up growth, or
+other change, priority-ordered so a pixel that's both "left forest" and
+"became built-up" reads as forest loss, the category this map exists to
+answer, rather than being split across two labels. Unchanged ground (the
+large majority) is left fully transparent so only real change draws the
+eye. Real result, 2018→2026: **714 ha forest lost, 789 ha gained** (net
++75 ha, matching the independently-computed aggregate trend to within
+0.1 ha — a genuine cross-check between two different views of the same
+underlying classification, not a coincidence). Rendered as its own
+toggleable layer on the Overview map (`src/visualize.py`'s
+`landcover_change_png()`) and summarized with metrics + a "how this map
+is calculated" expander on the Land & Crops tab.
+
+**A real, stated limit, not an oversight:** this map's spatial window is
+the Sentinel-2 era (2018-present) only, even though the *trend line*
+elsewhere in this dashboard goes back to 2005. The pre-2018 years use 30m
+Landsat imagery — a different pixel grid entirely — so comparing it
+pixel-for-pixel against this 10m grid without reprojecting one onto the
+other first would silently misalign ground, not just lose precision.
+Extending this spatial map back to 2005 is a real, identified next step
+(resample the Landsat-derived classifications onto the Sentinel-2 grid),
+not attempted here because doing it without that step would trade
+accuracy for a bigger number, exactly the kind of thing this project's
+own methodology consistently refuses to do.
+
+### A deliberate icon pass: fewer, not more
+
+After a design review, every tab-bar icon and one-off decorative emoji
+prefixed onto section headings/inline notes was removed in favour of
+plain text — Streamlit's `st.tabs()` can only render plain text or emoji
+per tab (no custom icon graphics), so plain text was the more
+professional, human-designed-reading option available, not a
+compromise. What's *kept*: the crop-family pictograms on the map and its
+legends (🌱🌽🌾🥔🥬🍎🍀🌳❔ — real, distinguishing symbols a user reads
+in seconds, not decoration), the location-pin/print-button icons (📍🖨️,
+conventional functional symbols), the single 🛰️ used consistently as
+this project's own wordmark (header, sidebar, browser favicon), and
+`st.info`/`st.warning`/`st.error`'s own default chrome icon (Streamlit's
+UI, not something this project added). Custom `icon=` overrides on those
+calls were removed for the same reason.
+
 ## What it found (first pass)
 
 - Land cover, Aug 2025: ~77% dense vegetation (three brightness tiers —

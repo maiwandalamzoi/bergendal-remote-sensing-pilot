@@ -223,6 +223,7 @@ villages = stats.get("villages", {}).get("list", [])
 soil = stats.get("soil", {})
 cbs_trend = stats.get("cbs_trend", {})
 forecast = stats.get("forecast", {})
+landcover_change_map = stats.get("landcover_change_map", {})
 
 with st.sidebar:
     st.markdown(f"### 🛰️ {t('Berg en Dal pilot', 'Berg en Dal-pilot')}")
@@ -520,7 +521,7 @@ def crop_family_forecast_chart(current_ha: dict, projected_ha: dict) -> alt.Char
     categorical identity (family) on the axis rather than encoded in
     colour twice. `projected_ha` comes straight from forecast.py's Markov
     transition matrix applied to every field's own current family and
-    area; see the Field Explorer tab's own 🔮 colour mode for the
+    area; see the Field Explorer tab's own colour mode for the
     per-field version of the same prediction."""
     i = 0 if LANG == "en" else 1
     families = sorted(
@@ -669,15 +670,15 @@ def flood_timeline_chart(flood_event: dict) -> alt.LayerChart:
 
 
 tab_overview, tab_explorer, tab_villages, tab_land, tab_climate, tab_forecast, tab_env, tab_water, tab_business = st.tabs([
-    "📋 " + t("Overview", "Overzicht"),
-    "🧭 " + t("Field Explorer", "Perceelverkenner"),
-    "🏘️ " + t("Villages", "Kernen"),
-    "🌾 " + t("Land & Crops", "Land & Gewassen"),
-    "📈 " + t("Trends & Climate", "Trends & Klimaat"),
-    "🔮 " + t("Forecast", "Voorspelling"),
-    "🏭 " + t("Environment & Energy", "Milieu & Energie"),
-    "🌊 " + t("Water", "Water"),
-    "💼 " + t("Business case", "Businesscase"),
+    t("Overview", "Overzicht"),
+    t("Field Explorer", "Perceelverkenner"),
+    t("Villages", "Kernen"),
+    t("Land & Crops", "Land & Gewassen"),
+    t("Trends & Climate", "Trends & Klimaat"),
+    t("Forecast", "Voorspelling"),
+    t("Environment & Energy", "Milieu & Energie"),
+    t("Water", "Water"),
+    t("Business case", "Businesscase"),
 ])
 
 # ======================================================================
@@ -732,18 +733,18 @@ with tab_overview:
         r_temp_headline = climate_corr.get("correlations", {}).get("ndvi_vs_august_temp")
         st.info(t(
             f"Full NDVI/NDWI trend, real August weather back to {trend['years'][0]}, and how they line up "
-            "— see the **📈 Trends & Climate** tab. Headline: net "
+            "— see the **Trends & Climate** tab. Headline: net "
             f"{trend.get('net_change', 0):+.3f} NDVI over {len(trend['years']) - 1} years, and August "
             "temperature is the single strongest weather correlate of that year's NDVI"
             + (f" (r ≈ {r_temp_headline:+.2f})" if r_temp_headline is not None else "") +
             " — hotter Augusts, lower vigour, physically the direction you'd expect.",
             f"Volledige NDVI/NDWI-trend, echte augustusweer-data terug tot {trend['years'][0]}, en hoe ze "
-            "samenhangen — zie het tabblad **📈 Trends & Klimaat**. Kernpunt: netto "
+            "samenhangen — zie het tabblad **Trends & Klimaat**. Kernpunt: netto "
             f"{trend.get('net_change', 0):+.3f} NDVI over {len(trend['years']) - 1} jaar, en de "
             "augustustemperatuur is de sterkste weerscorrelatie met de NDVI van dat jaar"
             + (f" (r ≈ {r_temp_headline:+.2f})" if r_temp_headline is not None else "") +
             " — hetere augustusmaanden, minder vitaliteit, precies de fysiek verwachte richting.",
-        ), icon="📈")
+        ))
 
 # ======================================================================
 with tab_explorer:
@@ -994,7 +995,7 @@ with tab_land:
         "snijmaïs (469 ha) wijzen samen op veeteelt als de dominante landgebruiksvorm, naast wintertarwe, "
         "suikerbieten en aardappelen als bouwlandrotatie. Precies die mix bepaalt de stikstofbelasting — "
         "veehouderijen zijn de bedrijven die een stikstofvergunning-product daadwerkelijk zou bedienen.",
-    ), icon="🌾")
+    ))
 
     if crop_rotation.get("top_transitions"):
         st.divider()
@@ -1126,7 +1127,7 @@ with tab_land:
                 "SoilGrids is een 250m-model, geen veldmonster — echte bodem varieert binnen die "
                 "voetafdruk, en een echte bodemtest is waar elke echte agronomische beslissing op hoort "
                 "te steunen, niet dit.",
-            ), icon="🌱")
+            ))
 
     st.subheader(t("Forest & nature", "Bos & natuur"))
     nature_brp = cat_ha.get("Natuurterrein", 0)
@@ -1146,6 +1147,70 @@ with tab_land:
         "niet bij elkaar opgeteld te worden.",
     ))
 
+    if landcover_change_map.get("ha"):
+        st.divider()
+        _lccy0, _lccy1 = landcover_change_map["first_year"], landcover_change_map["last_year"]
+        st.subheader(t(f"Where the forest actually went, {_lccy0}→{_lccy1}", f"Waar het bos daadwerkelijk gebleven is, {_lccy0}→{_lccy1}"))
+        _ha = landcover_change_map["ha"]
+        fc1, fc2, fc3, fc4 = st.columns(4)
+        fc1.metric(t("Forest lost", "Bos verloren"), f"{_ha.get('Forest loss', 0):,.0f} ha")
+        fc2.metric(t("Forest gained", "Bos gewonnen"), f"{_ha.get('Forest gain', 0):,.0f} ha")
+        _net_forest = _ha.get("Forest gain", 0) - _ha.get("Forest loss", 0)
+        fc3.metric(t("Net forest change", "Netto bosverandering"), f"{_net_forest:+,.0f} ha")
+        fc4.metric(t("Built-up growth", "Bebouwingsgroei"), f"{_ha.get('Built-up growth', 0):,.0f} ha")
+        st.caption(t(
+            f"A real spatial map, not just this hectare summary — every pixel that changed class between "
+            f"{_lccy0} and {_lccy1} is drawn on the **Overview** tab's map as its own toggleable layer "
+            "(\"Forest & land cover change\"), so you can see *where* forest was lost and gained, not just "
+            "the net number. Net change here should closely match the year-over-year trend above — a real "
+            "cross-check between two independently computed views of the same underlying classification.",
+            f"Een echte ruimtelijke kaart, niet alleen deze hectare-samenvatting — elke pixel die van "
+            f"klasse veranderde tussen {_lccy0} en {_lccy1} staat getekend op de kaart van het tabblad "
+            "**Overzicht** als eigen aan-/uitzetbare laag (\"Bos & landgebruikverandering\"), zodat je ziet "
+            "*waar* bos verloren en gewonnen is, niet alleen het nettocijfer. De nettoverandering hier komt "
+            "in de buurt van de jaar-op-jaar-trend hierboven — een echte kruiscontrole tussen twee "
+            "onafhankelijk berekende weergaven van dezelfde onderliggende classificatie.",
+        ))
+        with st.expander(t("How this map is calculated", "Hoe deze kaart wordt berekend")):
+            st.markdown(t(
+                f"1. Every Sentinel-2 August scene from {_lccy0} to {_lccy1} is independently run through "
+                "the same unsupervised KMeans classifier (Land & Crops / Trends & Climate tabs), each "
+                "pixel landing in one of six spectral clusters, then rolled up into four broad categories "
+                "(Water, Built-up, Agriculture, Forest/dense vegetation).\n"
+                f"2. Because every one of those years shares the exact same 10m pixel grid (checked "
+                f"directly — identical transform, shape and CRS, not assumed), the {_lccy0} and {_lccy1} "
+                f"rasters can be compared pixel-for-pixel: a pixel that was 'Forest' in {_lccy0} and "
+                f"something else in {_lccy1} is real forest loss at that exact location, not a resampling "
+                "artefact.\n"
+                "3. Where a pixel is both 'left forest' and 'became built-up' in the same window, it's "
+                "labelled forest loss — the category this map exists to answer — rather than split across "
+                "two labels.\n"
+                f"4. Restricted to {_lccy0}–{_lccy1} on purpose: the fuller 2005–present trend elsewhere "
+                "in this dashboard uses 30m Landsat imagery for the earlier years, a *different* pixel "
+                "grid entirely. Comparing that against this 10m grid pixel-for-pixel without reprojecting "
+                "one onto the other first would silently misalign ground, not just lose precision — so "
+                "this map's honest spatial window is the Sentinel-2 era, even though the trend *line* "
+                "goes back further.",
+                f"1. Elke Sentinel-2-augustusopname van {_lccy0} tot {_lccy1} wordt onafhankelijk door "
+                "dezelfde ongestuurde KMeans-classifier gehaald (tabbladen Land & Gewassen / Trends & "
+                "Klimaat), waarbij elke pixel in een van zes spectrale clusters valt, daarna opgeschaald "
+                "naar vier brede categorieën (Water, Bebouwd, Landbouw, Bos/dichte vegetatie).\n"
+                f"2. Omdat elk van die jaren precies hetzelfde 10m-pixelraster deelt (rechtstreeks "
+                f"gecontroleerd — identieke transform, vorm en CRS, niet aangenomen), kunnen de rasters "
+                f"van {_lccy0} en {_lccy1} pixel-voor-pixel vergeleken worden: een pixel die in {_lccy0} "
+                f"'Bos' was en in {_lccy1} iets anders, is echt bosverlies op die exacte locatie, geen "
+                "resampling-artefact.\n"
+                "3. Waar een pixel in hetzelfde venster zowel 'bos verlaten' als 'bebouwd geworden' is, "
+                "wordt hij gelabeld als bosverlies — de categorie waar deze kaart voor bedoeld is — in "
+                "plaats van over twee labels verdeeld.\n"
+                f"4. Bewust beperkt tot {_lccy0}–{_lccy1}: de volledigere trend sinds 2005 elders in dit "
+                "dashboard gebruikt voor de eerdere jaren 30m Landsat-beelden, een *ander* pixelraster. "
+                "Dat pixel-voor-pixel vergelijken met dit 10m-raster zonder eerst het een op het ander te "
+                "reprojecteren zou de grond stilletjes verkeerd uitlijnen, niet alleen precisie verliezen "
+                "— dus het eerlijke ruimtelijke venster van deze kaart is het Sentinel-2-tijdperk, ook al "
+                "gaat de trendlijn verder terug.",
+            ))
+
 # ======================================================================
 with tab_climate:
     st.subheader(t("22 years of vegetation, weather, and how they connect",
@@ -1161,7 +1226,7 @@ with tab_climate:
 
     sel_year = None
     if trend.get("years"):
-        st.markdown("#### " + t("🔎 Year Explorer — pick a year", "🔎 Jaarverkenner — kies een jaar"))
+        st.markdown("#### " + t("Year Explorer — pick a year", "Jaarverkenner — kies een jaar"))
         st.caption(t(
             "Every number this pipeline has for one specific year, gathered in one place — the charts "
             "below ring whichever year is picked here, so it's visible in context, not just as a number.",
@@ -1206,19 +1271,19 @@ with tab_climate:
 
         _notes = []
         if sel_year == 2018:
-            _notes.append(t("📉 Documented 2018 Northwestern-Europe drought — this series' single lowest NDVI year.",
-                             "📉 Gedocumenteerd droogtejaar 2018 in Noordwest-Europa — laagste NDVI van deze hele reeks."))
+            _notes.append(t("Documented 2018 Northwestern-Europe drought — this series' single lowest NDVI year.",
+                             "Gedocumenteerd droogtejaar 2018 in Noordwest-Europa — laagste NDVI van deze hele reeks."))
         if sel_year in _aug.get("years", []):
             _widx = _aug["years"].index(sel_year)
             if _aug["mean_temp_c"][_widx] == max(_aug["mean_temp_c"]):
-                _notes.append(t("🌡️ Hottest August in this whole 22-year weather record.", "🌡️ Heetste augustus uit deze hele 22-jarige weersreeks."))
+                _notes.append(t("Hottest August in this whole 22-year weather record.", "Heetste augustus uit deze hele 22-jarige weersreeks."))
             if _aug["total_precip_mm"][_widx] == min(_aug["total_precip_mm"]):
-                _notes.append(t("🏜️ Driest August in this whole 22-year weather record.", "🏜️ Droogste augustus uit deze hele 22-jarige weersreeks."))
+                _notes.append(t("Driest August in this whole 22-year weather record.", "Droogste augustus uit deze hele 22-jarige weersreeks."))
             if _aug["total_precip_mm"][_widx] == max(_aug["total_precip_mm"]):
-                _notes.append(t("🌧️ Wettest August in this whole 22-year weather record.", "🌧️ Natste augustus uit deze hele 22-jarige weersreeks."))
+                _notes.append(t("Wettest August in this whole 22-year weather record.", "Natste augustus uit deze hele 22-jarige weersreeks."))
         if sel_year == 2024:
-            _notes.append(t("🌊 January this year: the documented Rhine/Waal high water this pipeline's flood analysis covers — see the Water tab.",
-                             "🌊 Januari dit jaar: het gedocumenteerde hoogwater van Rijn/Waal dat de overstromingsanalyse van deze pipeline behandelt — zie het tabblad Water."))
+            _notes.append(t("January this year: the documented Rhine/Waal high water this pipeline's flood analysis covers — see the Water tab.",
+                             "Januari dit jaar: het gedocumenteerde hoogwater van Rijn/Waal dat de overstromingsanalyse van deze pipeline behandelt — zie het tabblad Water."))
         for _n in _notes:
             st.info(_n)
 
@@ -1384,7 +1449,7 @@ with tab_climate:
             "van een hele maand — een momentopname vergeleken met een integraal, geen twee direct "
             "vergelijkbare metingen. En temperatuur, neerslag en zonneschijn bewegen in een echte zomer "
             "samen op, dus correlatie kan hier niet precies aanwijzen welke ene variabele \"de\" aanjager is.",
-        ), icon="🔬")
+        ))
     elif trend.get("years"):
         st.caption(t(
             "Run `python src/fetch_weather.py` and `python src/climate_correlation.py` to add the weather "
@@ -1415,7 +1480,56 @@ with tab_forecast:
         "classifier-wiebel) — een rechte-lijn-extrapolatie op zo weinig, zo'n ruizige steekproef heeft een "
         "breed eerlijk interval, getoond als de gearceerde band. **Lees de band, niet de gestippelde "
         "lijn, als het daadwerkelijke antwoord.**",
-    ), icon="🔮")
+    ))
+
+    with st.expander(t("How every forecast on this tab is actually calculated", "Hoe elke voorspelling op dit tabblad daadwerkelijk wordt berekend")):
+        st.markdown(t(
+            "**Vegetation, land cover, population, housing stock — one method, four series:** ordinary "
+            "least squares (`sklearn.linear_model.LinearRegression`) fit on that series' own real annual "
+            "values, then projected 5 years past the last observed one. The shaded band is a real 80% "
+            "prediction interval (`scipy.stats.t`, the textbook formula) — it widens the further a "
+            "projected year sits from the data's own mean year, because a straight line is always more "
+            "uncertain further from what it was actually fit on. The R² shown next to each chart is how "
+            "much of that series' year-to-year variation the straight line explains at all — low R² (like "
+            "NDVI's 0.31) means treat the band, not the point estimate, as the real answer; high R² (like "
+            "housing stock's 0.98) means the straight line is doing real work, not just decoration.\n\n"
+            "**Crop rotation — a different method entirely:** not a trend line. Every field's real "
+            "multi-year BRP history (crop_rotation.py's matched 2020–2025 records) is walked year-to-year, "
+            "and every observed crop-family-to-crop-family transition is counted. Dividing each family's "
+            "outgoing counts by their total gives `transition_matrix[A][B]` — the empirical probability "
+            "that a field grown as family A one year is family B the next, among the transitions this "
+            "pipeline's own matched history actually contains. Field Explorer's colour mode looks up each "
+            "field's current family in that matrix and colours it by the most likely next family; the "
+            "municipality-wide bar chart below spreads every field's own area across next year's families "
+            "by those same probabilities (an expected value, not 3,787 individual hard predictions).\n\n"
+            "**None of this is a trained, tuned, cross-validated model** — it's the simplest method that's "
+            "honest about a 5–9-point, genuinely noisy sample, on real data this pipeline already had. "
+            "Full code and reasoning: `src/forecast.py`.",
+            "**Vegetatie, landgebruik, bevolking, woningvoorraad — één methode, vier reeksen:** gewone "
+            "kleinste-kwadraten-regressie (`sklearn.linear_model.LinearRegression`) op de eigen echte "
+            "jaarwaarden van die reeks, daarna 5 jaar voorbij het laatst waargenomen jaar geprojecteerd. "
+            "De gearceerde band is een echt 80%-voorspelinterval (`scipy.stats.t`, de standaardformule) — "
+            "hij wordt breder naarmate een voorspeld jaar verder van het eigen gemiddelde jaar van de data "
+            "afligt, omdat een rechte lijn altijd onzekerder is verder van waar hij daadwerkelijk op is "
+            "gefit. De R² naast elke grafiek is hoeveel van de jaar-op-jaar-variatie van die reeks de "
+            "rechte lijn überhaupt verklaart — lage R² (zoals NDVI's 0,31) betekent: lees de band, niet de "
+            "puntschatting, als het echte antwoord; hoge R² (zoals de woningvoorraad's 0,98) betekent dat "
+            "de rechte lijn echt werk verzet, geen versiering.\n\n"
+            "**Gewasrotatie — een compleet andere methode:** geen trendlijn. De echte meerjarige "
+            "BRP-geschiedenis van elk perceel (crop_rotation.py's gematchte 2020-2025-records) wordt "
+            "jaar-op-jaar doorlopen, en elke waargenomen overgang van de ene gewasfamilie naar de andere "
+            "wordt geteld. Het delen van elke familie's uitgaande tellingen door hun totaal geeft "
+            "`transition_matrix[A][B]` — de empirische kans dat een perceel met familie A het jaar erop "
+            "familie B heeft, onder de overgangen die de eigen gematchte geschiedenis van deze pipeline "
+            "daadwerkelijk bevat. De kleurmodus van Perceelverkenner zoekt de huidige familie van elk "
+            "perceel op in die matrix en kleurt het naar de meest waarschijnlijke volgende familie; de "
+            "gemeentebrede staafgrafiek hieronder verdeelt de oppervlakte van elk perceel over de families "
+            "van volgend jaar volgens diezelfde kansen (een verwachtingswaarde, geen 3.787 individuele "
+            "harde voorspellingen).\n\n"
+            "**Niets hiervan is een getraind, afgesteld, kruisgevalideerd model** — het is de eenvoudigste "
+            "methode die eerlijk is over een steekproef van 5-9 punten die echt ruizig is, op echte data "
+            "die deze pipeline al had. Volledige code en redenering: `src/forecast.py`.",
+        ))
 
     if not forecast:
         st.info(t("Run `python src/forecast.py` (or the full pipeline) to add forecasts here.",
@@ -1548,10 +1662,10 @@ with tab_forecast:
             )
             st.info(t(
                 "**See it on the map, per field:** switch Field Explorer's \"Colour fields by\" to "
-                "**🔮 Predicted next crop (ML)** — each field is coloured by its own most likely next-year "
+                "**Predicted next crop (ML)** — each field is coloured by its own most likely next-year "
                 "family, with the predicted probability in its tooltip.",
                 "**Bekijk het op de kaart, per perceel:** zet \"Percelen kleuren op\" in Perceelverkenner op "
-                "**🔮 Voorspeld volgend gewas (ML)** — elk perceel is gekleurd naar de eigen meest "
+                "**Voorspeld volgend gewas (ML)** — elk perceel is gekleurd naar de eigen meest "
                 "waarschijnlijke gewasfamilie van volgend jaar, met de voorspelde kans in de tooltip.",
             ))
 
@@ -1642,7 +1756,7 @@ with tab_env:
         "waardevolste datahiaat voor een Berg en Dal-product gericht op boeren of het "
         "vergunningsproces van de gemeente zelf** — het dichten ervan vraagt om een gesprek over "
         "datadeling met RIVM/AERIUS, geen extra satellietdata.",
-    ), icon="⚠️")
+    ))
 
     st.divider()
     st.subheader(t("Energy transition — CBS, 2024", "Energietransitie — CBS, 2024"))
@@ -1672,7 +1786,7 @@ with tab_env:
         "geraden. **Internet-/breedbanddekking** heeft in Nederland helemaal geen vergelijkbare schone "
         "open geodata; dat zou de eigen data van een telecompartner vergen. Beide zijn echte "
         "vervolgstappen, geen stille omissies.",
-    ), icon="🔌")
+    ))
 
 # ======================================================================
 with tab_water:
@@ -1696,7 +1810,7 @@ with tab_water:
             f"gebeurtenis tot de piek ({flood_event.get('peak_date', '?')}, "
             f"{flood_event.get('net_change_pct', 0):+.1f} punten netto) — een reëel signaal, duidelijk "
             "boven de ruis, anders dan de ≈0 netto verandering van de oude methode hieronder.",
-        ), icon="🌊")
+        ))
         st.markdown(f"**{t('Flooded share of the AOI through the event', 'Overstroomd aandeel van het gebied tijdens de gebeurtenis')}**")
         st.altair_chart(flood_timeline_chart(flood_event), use_container_width=True)
         _phases = " → ".join(f"{r['date']} ({r['phase']})" for r in flood_event["timeline"])
@@ -1739,7 +1853,7 @@ with tab_water:
             "het bestaande gebied op te vangen) is een aparte, nog open verklaring voor waarom zelfs het "
             "signaal van de verbeterde methode een toename in oppervlak is en geen dramatische nieuwe "
             "overstroming.",
-        ), icon="🗂️")
+        ))
     c1, c2 = st.columns(2)
     c1.metric(t("SAR ↔ optical water agreement", "SAR ↔ optische overeenstemming water"), f"{cross.get('iou_pct', 0):.0f}% IoU",
               delta=f"SAR {cross.get('sar_water_pct', 0):.1f}% vs " + t("optical", "optisch") + f" {cross.get('optical_water_pct', 0):.1f}%",

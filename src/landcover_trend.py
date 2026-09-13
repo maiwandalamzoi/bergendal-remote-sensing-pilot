@@ -132,7 +132,100 @@ def build_trend() -> dict:
         "series_ha": series,
         "change": changes,
     })
+
+    build_change_map(years[0], years[-1])
     return {"years": years, "series_ha": series, "change": changes}
+
+
+# Pixel-level transition classes for the spatial change map -- one label
+# per changed pixel, priority-ordered so a pixel that's both "left forest"
+# and "became built-up" reads as forest loss first (the category this map
+# exists to answer -- "where did the forest actually go"), not folded
+# anonymously into a generic "other change" bucket.
+CHANGE_NODATA = 0
+CHANGE_NONE = 1
+CHANGE_FOREST_LOSS = 2
+CHANGE_FOREST_GAIN = 3
+CHANGE_BUILTUP_GROWTH = 4
+CHANGE_OTHER = 5
+
+CHANGE_CLASS_NAMES = {
+    CHANGE_NODATA: "No data",
+    CHANGE_NONE: "No change",
+    CHANGE_FOREST_LOSS: "Forest loss",
+    CHANGE_FOREST_GAIN: "Forest gain",
+    CHANGE_BUILTUP_GROWTH: "Built-up growth",
+    CHANGE_OTHER: "Other change",
+}
+
+
+def build_change_map(first_year: int, last_year: int) -> Path:
+    """A real spatial answer to "where did the forest actually go" -- not
+    just the aggregate hectare trend above, a pixel that changed *class*
+    between `first_year` and `last_year`, both already-classified Sentinel-2
+    years sharing the same 10m grid (checked directly: identical transform/
+    shape/CRS, not assumed -- this is what makes a pixel-wise compare valid
+    at all here). Restricted to the Sentinel-2 era (2018-present) on
+    purpose: the pre-2018 series in ndvi_trend.py/the Trends & Climate tab
+    uses 30m Landsat, a different pixel grid entirely -- comparing it
+    pixel-for-pixel against this 10m grid without reprojecting first would
+    silently misalign ground, not just lose precision, so this map's
+    honest window is 2018-present even though the *trend line* elsewhere
+    in this dashboard goes back to 2005.
+    """
+    label0, label1 = f"summer_{first_year}", f"summer_{last_year}"
+    with rasterio.open(PROC_DIR / f"{label0}_landcover.tif") as src:
+        cls0, profile = src.read(1), src.profile.copy()
+    with rasterio.open(PROC_DIR / f"{label1}_landcover.tif") as src:
+        cls1 = src.read(1)
+    legend0, legend1 = _load_legend(label0), _load_legend(label1)
+
+    def to_broad(cls_arr: np.ndarray, legend: dict[int, str]) -> np.ndarray:
+        broad = np.full(cls_arr.shape, "", dtype=object)
+        for cid, raw_name in legend.items():
+            b = BROAD_CATEGORIES.get(raw_name)
+            if b:
+                broad[cls_arr == cid] = b
+        return broad
+
+    broad0, broad1 = to_broad(cls0, legend0), to_broad(cls1, legend1)
+    both_valid = (cls0 != 255) & (cls1 != 255)
+
+    change = np.full(cls0.shape, CHANGE_NODATA, dtype=np.uint8)
+    same = both_valid & (broad0 == broad1)
+    change[same] = CHANGE_NONE
+
+    forest = "Forest / dense vegetation"
+    forest_loss = both_valid & ~same & (broad0 == forest) & (broad1 != forest)
+    forest_gain = both_valid & ~same & (broad1 == forest) & (broad0 != forest)
+    builtup_growth = both_valid & ~same & (broad1 == "Built-up") & (broad0 != "Built-up") & ~forest_loss
+    other = both_valid & ~same & ~forest_loss & ~forest_gain & ~builtup_growth
+    change[forest_loss] = CHANGE_FOREST_LOSS
+    change[forest_gain] = CHANGE_FOREST_GAIN
+    change[builtup_growth] = CHANGE_BUILTUP_GROWTH
+    change[other] = CHANGE_OTHER
+
+    out_profile = profile.copy()
+    out_profile.update(count=1, dtype="uint8", nodata=CHANGE_NODATA)
+    out_path = PROC_DIR / f"landcover_change_{first_year}_{last_year}.tif"
+    with rasterio.open(out_path, "w", **out_profile) as dst:
+        dst.write(change[np.newaxis, :, :])
+
+    counts = {CHANGE_CLASS_NAMES[c]: int((change == c).sum()) for c in CHANGE_CLASS_NAMES if c != CHANGE_NODATA}
+    ha = {name: round(n * HA_PER_PX, 1) for name, n in counts.items()}
+    n_changed = sum(n for c, n in counts.items() if c != "No change")
+    n_common = int(both_valid.sum())
+    print(f"[landcover change map] {first_year}->{last_year}: {n_changed:,}/{n_common:,} common px changed class "
+          f"({n_changed / n_common * 100:.1f}%)" if n_common else "[landcover change map] no common valid pixels")
+    for name, val in ha.items():
+        print(f"  {name:<20} {val:8,.1f} ha")
+
+    update_stats("landcover_change_map", {
+        "first_year": first_year, "last_year": last_year,
+        "common_valid_ha": round(n_common * HA_PER_PX, 1),
+        "ha": ha,
+    })
+    return out_path
 
 
 if __name__ == "__main__":
