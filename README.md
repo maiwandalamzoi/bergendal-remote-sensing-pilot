@@ -114,10 +114,12 @@ or open `outputs/bergendal_map.html` directly in a browser for just the map.
    English/Dutch language switch — every UI string routes through one
    `t(en, nl)` call keyed off `st.session_state.lang`, not both languages
    shown inline at once — plus a village/place selector, see **Villages**
-   below) and eight tabs: Overview, **Field Explorer**, **Villages**, Land
-   & Crops, **Trends & Climate**, Environment & Energy, Water, and a
-   Business case tab spelling out who'd actually pay for this and what the
-   real remaining data gaps are. Genuinely Dutch data values (BRP crop and
+   below) and nine tabs: Overview, **Field Explorer**, **Villages**, Land
+   & Crops, **Trends & Climate**, **🔮 Forecast** (simple OLS trend
+   projections plus a crop-rotation Markov model — see **Forecast**
+   below), Environment & Energy, Water, and a Business case tab spelling
+   out who'd actually pay for this and what the real remaining data gaps
+   are. Genuinely Dutch data values (BRP crop and
    category names) stay Dutch regardless of the switch — those are real
    registry records, not UI chrome to translate. Everything reads from
    `data/processed/stats.json` (each stage writes its own summary there via
@@ -374,6 +376,62 @@ no public WCS/WFS at all, under any of the endpoint patterns RIVM's own
 other services (used successfully elsewhere in this pipeline) follow.
 Both are named gaps with a specific, checked reason, not silent
 omissions — see the Environment & Energy tab.
+
+### Forecast: simple, honest ML on everything above, not a black box
+
+**`src/forecast.py`** — one module, four forecasts, all built on data this
+pipeline had already fetched (zero new network calls, `python
+src/forecast.py` runs in seconds):
+
+- **Vegetation health (NDVI/NDWI):** ordinary least squares on the
+  22-year trend, projected 5 years out with a real OLS 80% prediction
+  interval (`scipy.stats.t`, widening with distance from the data's own
+  mean year — the textbook formula, not a fixed ±band). R²=0.31 on the
+  22-year series, stated on the tab itself rather than hidden behind the
+  point estimate — this pipeline's own Trends & Climate tab already says
+  "read the shape, not the slope" about the *historical* NDVI series; a
+  forecast built on top of it inherits that caveat, more so.
+- **Land cover** (built-up/forest/agriculture/water): the same
+  OLS-plus-interval treatment per category on `landcover_trend.py`'s
+  already common-footprint-corrected series, clipped to `[0, that
+  series' own footprint]` — a straight line doesn't know hectares can't
+  go negative or exceed the area it's measured over.
+- **Population & housing stock:** the same, on `cbs_trend.py`'s CBS
+  registry series — R²=0.85 (population) and 0.98 (housing stock), by
+  far the most defensible forecasts here, a near-straight administrative
+  series rather than a noisy environmental one.
+- **Crop rotation — not a trend line at all:** a first-order Markov chain
+  over crop *families* (not the 102 raw crop names — not enough real
+  transitions per exact crop to say anything about most of them), built
+  from **14,424 real transitions** in every field's own multi-year BRP
+  history (`crop_rotation.py`'s `rotation_json`). `transition_matrix[A][B]`
+  is the empirical probability that a field grown as family A one year is
+  family B the next, among the transitions this pipeline's own matched
+  history actually contains — not a hand-picked agronomic rule. Sample
+  result: maize self-persists 49% of the time, rotates to cereals or root
+  crops ~28% combined — textbook Dutch arable rotation, not noise.
+
+**Powers two dashboard surfaces:** a **🔮 Forecast** tab (charts: solid
+history, dashed projection, shaded 80% band — "read the band, not the
+dashed line" stated once up top rather than five times below) and Field
+Explorer's **🔮 Predicted next crop (ML)** colour mode, which colours
+every field by its own most-likely next-year family (looked up from the
+same transition matrix, not refit per request) with the predicted
+probability in its tooltip.
+
+**A real bug found and fixed while building this:**
+`visualize.py`'s `classify_crop()` matched crop names by an ASCII
+substring (`"mais" in name.lower()`), so it silently missed every
+occurrence of BRP's historical-archive spelling "Maïs" (diaeresis) —
+every archive-year maize parcel would have fallen into "other" instead
+of "maize" in the transition counts, undercounting the single most
+common rotation crop in the whole matrix. Fixed by accent-normalizing
+(NFKD-decompose, drop combining marks) before matching — the same
+technique `crop_rotation.py`'s own `normalize_crop()` already uses for a
+different reason (detecting whitespace/spelling-variant false-positive
+"crop changes"). Caught specifically *because* this forecast needed to
+classify crop names from every historical year, not just 2025's — a case
+the dashboard's own existing `classify_crop()` calls never exercised.
 
 ## What it found (first pass)
 

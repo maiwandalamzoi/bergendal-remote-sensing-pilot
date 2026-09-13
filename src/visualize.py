@@ -5,6 +5,7 @@ one interactive Leaflet map (via folium) with all of them as toggleable
 layers over real OpenStreetMap basemap, framed on Berg en Dal.
 """
 import datetime
+import unicodedata
 from pathlib import Path
 
 import folium
@@ -257,6 +258,7 @@ FIELD_COLOR_MODES = {
     "crop_family": ("Crop family", "Gewasfamilie"),
     "ndvi_2025": ("NDVI 2025 (health)", "NDVI 2025 (vitaliteit)"),
     "ndvi_change": ("NDVI change 2024→2025", "NDVI-verandering 2024→2025"),
+    "predicted_next_family": ("🔮 Predicted next crop (ML)", "🔮 Voorspeld volgend gewas (ML)"),
 }
 
 
@@ -288,8 +290,17 @@ def classify_crop(name: str, category: str) -> str:
     land somewhere sensible instead of silently falling into "other".
     Checked against every one of this AOI's 102 actual crop names: ~97% of
     parcels get a specific family, the rest ("Groene braak" / fallow and a
-    handful of unnamed "overige ..." catch-alls) are genuinely other."""
-    n = name.lower()
+    handful of unnamed "overige ..." catch-alls) are genuinely other.
+
+    Accent-normalized before matching (NFKD-decompose, drop combining
+    marks) -- a real bug found while building crop-rotation forecasting:
+    BRP's historical GeoPackage archive spells maize "Maïs" (diaeresis)
+    where the live WFS drops it ("Mais"; same fix crop_rotation.py's own
+    normalize_crop() already applies for a different reason). Without
+    this, `has("mais")` never matches "maïs, snij-" -- every archive-year
+    maize parcel silently fell into "other" instead of "maize"."""
+    decomposed = unicodedata.normalize("NFKD", name)
+    n = "".join(c for c in decomposed if not unicodedata.combining(c)).lower()
 
     def has(*words: str) -> bool:
         return any(w in n for w in words)
@@ -401,9 +412,17 @@ def field_explorer_map(color_by: str = "category", center: list | None = None, l
     `village`, when given a name from data/raw/villages.geojson (CBS's own
     "wijken"), clips the fields shown to that village's real administrative
     boundary rather than a hand-drawn radius.
+
+    `color_by="predicted_next_family"` colours each field by the most
+    likely crop family a first-order Markov transition matrix (built once
+    by forecast.py from every field's own real multi-year BRP rotation
+    history) predicts for next year -- looked up here, not refit per
+    request. See forecast.py's module docstring for the method and its
+    honest limits.
     """
     import geopandas as gpd
 
+    i = 0 if lang == "en" else 1
     gdf = gpd.read_file(RAW_DIR / "brp_parcels.geojson")
     village_geom = None
     if village:
@@ -432,6 +451,26 @@ def field_explorer_map(color_by: str = "category", center: list | None = None, l
     # icons, not an icon soup.
     gdf_rd["_family"] = gdf_rd.apply(lambda r: classify_crop(r["gewas"], r["category"]), axis=1)
     gdf_rd["_icon"] = gdf_rd["_family"].map(lambda f: CROP_FAMILIES[f][1])
+
+    # Predicted next crop family (ML): a first-order Markov transition
+    # matrix over crop families, built once by forecast.py from every
+    # field's own real multi-year BRP rotation history -- looked up here,
+    # not refit per request. Falls back to "stays the same family, no
+    # probability claimed" for any family with zero observed transitions
+    # in that history (e.g. "other").
+    _transition_matrix = load_stats().get("forecast", {}).get("crop_rotation", {}).get("transition_matrix", {})
+
+    def _predict_next(fam: str) -> tuple[str, float | None]:
+        row_probs = _transition_matrix.get(fam)
+        if not row_probs:
+            return fam, None
+        best_fam = max(row_probs, key=row_probs.get)
+        return best_fam, row_probs[best_fam]
+
+    _pred = gdf_rd["_family"].map(_predict_next)
+    gdf_rd["_pred_family"] = _pred.map(lambda p: p[0])
+    gdf_rd["_pred_prob"] = _pred.map(lambda p: p[1])
+
     icon_points_rd = gdf_rd[gdf_rd["area_ha"] >= 0.3][["geometry", "_icon", "gewas", "area_ha"]].copy()
     icon_points_rd["geometry"] = icon_points_rd.geometry.centroid
     icon_gdf = icon_points_rd.to_crs(4326)
@@ -442,12 +481,22 @@ def field_explorer_map(color_by: str = "category", center: list | None = None, l
     # Icon + crop name in one field so the tooltip/popup shows "🌽 Mais,
     # snij-" without needing a second aliased row just for the icon.
     gdf["_crop_display"] = gdf["_icon"] + " " + gdf["gewas"]
+    _no_data_txt = ("no observed transitions", "geen waargenomen overgangen")[i]
+    gdf["_pred_display"] = gdf.apply(
+        lambda r: (
+            f"{CROP_FAMILIES[r['_pred_family']][1]} {CROP_FAMILIES[r['_pred_family']][2 + i]}"
+            + (f" ({r['_pred_prob'] * 100:.0f}%)" if pd.notna(r["_pred_prob"]) else f" ({_no_data_txt})")
+        ),
+        axis=1,
+    )
 
     def color_for(row):
         if color_by == "category":
             return BRP_COLORS.get(row["category"], "#999999")
         if color_by == "crop_family":
             return CROP_FAMILIES[row["_family"]][0]
+        if color_by == "predicted_next_family":
+            return CROP_FAMILIES[row["_pred_family"]][0]
         if color_by == "ndvi_2025":
             return _hex_from_cmap(row.get("ndvi_2025"), 0.2, 0.9, "RdYlGn")
         if color_by == "ndvi_change":
@@ -470,7 +519,8 @@ def field_explorer_map(color_by: str = "category", center: list | None = None, l
     # Drop everything except what the layer actually renders/displays --
     # smaller payload, and NaN floats (unset ndvi on cloud-masked parcels)
     # never reach the embedded JSON at all.
-    gdf = gdf[["geometry", "_crop_display", "category", "_area_txt", "_ndvi25_txt", "_ndvi_chg_txt", "_color"]]
+    gdf = gdf[["geometry", "_crop_display", "category", "_area_txt", "_ndvi25_txt", "_ndvi_chg_txt",
+               "_pred_display", "_color"]]
 
     m = folium.Map(location=center, zoom_start=14 if village else 13, tiles="OpenStreetMap",
                     control_scale=True, prefer_canvas=True)
@@ -478,12 +528,13 @@ def field_explorer_map(color_by: str = "category", center: list | None = None, l
                title="Fullscreen" if lang == "en" else "Volledig scherm",
                title_cancel="Exit fullscreen" if lang == "en" else "Volledig scherm sluiten").add_to(m)
 
-    i = 0 if lang == "en" else 1
     tooltip_aliases = [
         ("Crop", "Gewas"), ("Category", "Categorie"), ("Area (ha)", "Oppervlakte (ha)"),
         ("NDVI 2025", "NDVI 2025"), ("NDVI Δ 2024→25", "NDVI Δ 2024→25"),
+        ("🔮 Predicted next crop", "🔮 Voorspeld volgend gewas"),
     ][:]
     aliases = [pair[i] for pair in tooltip_aliases]
+    _feature_fields = ["_crop_display", "category", "_area_txt", "_ndvi25_txt", "_ndvi_chg_txt", "_pred_display"]
 
     folium.GeoJson(
         gdf.__geo_interface__,
@@ -492,14 +543,8 @@ def field_explorer_map(color_by: str = "category", center: list | None = None, l
             "weight": 0.4, "fillOpacity": 0.75,
         },
         highlight_function=lambda f: {"weight": 2, "color": "#16221C", "fillOpacity": 0.9},
-        tooltip=folium.GeoJsonTooltip(
-            fields=["_crop_display", "category", "_area_txt", "_ndvi25_txt", "_ndvi_chg_txt"],
-            aliases=aliases, sticky=True,
-        ),
-        popup=folium.GeoJsonPopup(
-            fields=["_crop_display", "category", "_area_txt", "_ndvi25_txt", "_ndvi_chg_txt"],
-            aliases=aliases,
-        ),
+        tooltip=folium.GeoJsonTooltip(fields=_feature_fields, aliases=aliases, sticky=True),
+        popup=folium.GeoJsonPopup(fields=_feature_fields, aliases=aliases),
         name=("Field boundaries (BRP)", "Perceelgrenzen (BRP)")[i],
     ).add_to(m)
 
@@ -584,6 +629,38 @@ def field_explorer_map(color_by: str = "category", center: list | None = None, l
           <div style="display:flex; justify-content:space-between; margin-top:4px; color:#555; font-size:10.5px;">
             <span>{lo_txt}</span><span>{hi_txt}</span>
           </div>
+        </div>
+        """))
+    elif color_by == "predicted_next_family":
+        # Same swatch rows as crop_family (same palette, same meaning of
+        # colour) -- the caveat is what's different: this is a predicted
+        # *next* family, with a real sample size behind it, not the
+        # observed current one.
+        rows = "".join(
+            f'<div style="display:flex;align-items:center;gap:7px;margin:3px 0;">'
+            f'<span style="width:12px;height:12px;background:{color};display:inline-block;'
+            f'border-radius:2px;flex-shrink:0;"></span><span>{icon} {label[i]}</span></div>'
+            for color, icon, *label in CROP_FAMILIES.values()
+        )
+        legend_title = ("🔮 Predicted next crop family (ML)", "🔮 Voorspeld volgend gewasfamilie (ML)")[i]
+        _n_obs = load_stats().get("forecast", {}).get("crop_rotation", {}).get("n_transitions_observed", 0)
+        legend_note = (
+            f"Each field's most likely next-year family, from a transition matrix built on {_n_obs:,} "
+            "real year-to-year transitions in this pipeline's own matched BRP history — a probability, "
+            "not a guarantee. Hover a field for its own predicted probability.",
+            f"De meest waarschijnlijke gewasfamilie van volgend jaar per perceel, uit een overgangsmatrix "
+            f"op basis van {_n_obs:,} echte jaar-op-jaar overgangen in de eigen gematchte BRP-geschiedenis "
+            "van deze pipeline — een kans, geen garantie. Beweeg over een perceel voor de eigen "
+            "voorspelde kans.",
+        )[i]
+        m.get_root().html.add_child(folium.Element(f"""
+        <div style="position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+                    background: white; padding: 10px 14px; border-radius: 8px;
+                    box-shadow: 0 2px 10px rgba(0,0,0,.2); font-family: sans-serif; font-size: 11.5px;
+                    max-width: 260px;">
+          <div style="font-weight:600; margin-bottom:4px; font-size:12px;">{legend_title}</div>
+          {rows}
+          <div style="margin-top:6px; color:#666; font-size:10px; line-height:1.4;">{legend_note}</div>
         </div>
         """))
 

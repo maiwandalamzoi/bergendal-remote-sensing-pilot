@@ -222,6 +222,7 @@ air_quality_trend = stats.get("air_quality_trend", {})
 villages = stats.get("villages", {}).get("list", [])
 soil = stats.get("soil", {})
 cbs_trend = stats.get("cbs_trend", {})
+forecast = stats.get("forecast", {})
 
 with st.sidebar:
     st.markdown(f"### 🛰️ {t('Berg en Dal pilot', 'Berg en Dal-pilot')}")
@@ -472,6 +473,84 @@ def landcover_trend_chart(years: list, values: list, category: str) -> alt.Chart
     return chart.configure_view(strokeWidth=0).configure_axis(**CHART_AXIS_KW)
 
 
+def forecast_chart(history_years: list, history_values: list, future_years: list, future_values: list,
+                    lower80: list, upper80: list, y_title: str, color: str, value_fmt: str = ",.0f",
+                    height: int = 220) -> alt.LayerChart:
+    """Historical points/line in solid colour, then a dashed line +
+    shaded 80% prediction band for the forecast years -- dashed always
+    reads as "projected, not observed" without needing a second legend,
+    and the band (not the line) is deliberately the visually dominant
+    element, since the band is the honest answer here, not the point
+    estimate. One shared helper for every forecast.py series (NDVI/NDWI,
+    each land-cover category, population, housing stock) rather than
+    bespoke chart code per metric."""
+    hist_df = pd.DataFrame({"year": history_years, "value": history_values})
+    fut_df = pd.DataFrame({"year": future_years, "value": future_values})
+    # Bridges the last real point to the first forecast point so the
+    # dashed segment starts exactly where the solid one ends, instead of
+    # a visual gap at the history/forecast seam.
+    bridge_df = pd.concat([hist_df.tail(1), fut_df], ignore_index=True)
+    band_df = pd.DataFrame({"year": future_years, "lower": lower80, "upper": upper80}).dropna()
+
+    band = alt.Chart(band_df).mark_area(color=color, opacity=0.16).encode(
+        x=alt.X("year:O", title=None, axis=alt.Axis(labelAngle=-45)),
+        y=alt.Y("lower:Q", title=y_title, scale=alt.Scale(zero=False)), y2="upper:Q",
+    )
+    hist_line = alt.Chart(hist_df).mark_line(color=color, strokeWidth=2).encode(x="year:O", y="value:Q")
+    hist_points = alt.Chart(hist_df).mark_point(size=55, filled=True, color=color).encode(
+        x="year:O", y="value:Q",
+        tooltip=[alt.Tooltip("year:O", title=t("Year", "Jaar")), alt.Tooltip("value:Q", title=t("Observed", "Waargenomen"), format=value_fmt)],
+    )
+    fut_line = alt.Chart(bridge_df).mark_line(color=color, strokeWidth=2, strokeDash=[5, 3]).encode(x="year:O", y="value:Q")
+    fut_points = alt.Chart(fut_df).mark_point(size=55, filled=False, strokeWidth=2, color=color).encode(
+        x="year:O", y="value:Q",
+        tooltip=[alt.Tooltip("year:O", title=t("Year", "Jaar")), alt.Tooltip("value:Q", title=t("Forecast", "Voorspelling"), format=value_fmt)],
+    )
+    return (
+        alt.layer(band, hist_line, fut_line, hist_points, fut_points)
+        .properties(height=height)
+        .configure_view(strokeWidth=0)
+        .configure_axis(**CHART_AXIS_KW)
+    )
+
+
+def crop_family_forecast_chart(current_ha: dict, projected_ha: dict) -> alt.Chart:
+    """Current (2025) vs. projected-next-year hectares per crop family,
+    grouped bars -- two series (a real legend, not colour-by-rank), the
+    categorical identity (family) on the axis rather than encoded in
+    colour twice. `projected_ha` comes straight from forecast.py's Markov
+    transition matrix applied to every field's own current family and
+    area; see the Field Explorer tab's own 🔮 colour mode for the
+    per-field version of the same prediction."""
+    i = 0 if LANG == "en" else 1
+    families = sorted(
+        set(current_ha) | set(projected_ha),
+        key=lambda f: -(current_ha.get(f, 0) + projected_ha.get(f, 0)),
+    )
+    label_of = {f: f"{CROP_FAMILIES[f][1]} {CROP_FAMILIES[f][2 + i]}" for f in families if f in CROP_FAMILIES}
+    series_now, series_next = t("This year", "Dit jaar"), t("Projected next year", "Voorspeld volgend jaar")
+    rows = []
+    for fam in families:
+        label = label_of.get(fam, fam)
+        rows.append({"family": label, "series": series_now, "ha": current_ha.get(fam, 0.0)})
+        rows.append({"family": label, "series": series_next, "ha": projected_ha.get(fam, 0.0)})
+    df = pd.DataFrame(rows)
+    order = [label_of.get(f, f) for f in families]
+    chart = alt.Chart(df).mark_bar(cornerRadiusEnd=3).encode(
+        x=alt.X("ha:Q", title=t("Hectares", "Hectare")),
+        y=alt.Y("family:N", title=None, sort=order, axis=alt.Axis(labelLimit=260)),
+        yOffset=alt.YOffset("series:N", sort=[series_now, series_next]),
+        color=alt.Color(
+            "series:N", title=None,
+            scale=alt.Scale(domain=[series_now, series_next], range=[COLOR_SENTINEL2, COLOR_SELECTED]),
+            legend=alt.Legend(orient="top"),
+        ),
+        tooltip=[alt.Tooltip("family:N", title=t("Family", "Familie")), alt.Tooltip("series:N", title=None),
+                 alt.Tooltip("ha:Q", title=t("Hectares", "Hectare"), format=",.0f")],
+    ).properties(height=30 * len(families) + 40)
+    return chart.configure_view(strokeWidth=0).configure_axis(**CHART_AXIS_KW)
+
+
 def air_quality_trend_chart(years: list, values: list, pollutant: str, color: str) -> alt.Chart:
     """One pollutant's annual mean over time -- same small-multiple
     treatment as the weather charts, plus a highlight ring on 2020 (the
@@ -589,12 +668,13 @@ def flood_timeline_chart(flood_event: dict) -> alt.LayerChart:
     )
 
 
-tab_overview, tab_explorer, tab_villages, tab_land, tab_climate, tab_env, tab_water, tab_business = st.tabs([
+tab_overview, tab_explorer, tab_villages, tab_land, tab_climate, tab_forecast, tab_env, tab_water, tab_business = st.tabs([
     "📋 " + t("Overview", "Overzicht"),
     "🧭 " + t("Field Explorer", "Perceelverkenner"),
     "🏘️ " + t("Villages", "Kernen"),
     "🌾 " + t("Land & Crops", "Land & Gewassen"),
     "📈 " + t("Trends & Climate", "Trends & Klimaat"),
+    "🔮 " + t("Forecast", "Voorspelling"),
     "🏭 " + t("Environment & Energy", "Milieu & Energie"),
     "🌊 " + t("Water", "Water"),
     "💼 " + t("Business case", "Businesscase"),
@@ -1312,6 +1392,168 @@ with tab_climate:
             "Draai `python src/fetch_weather.py` en `python src/climate_correlation.py` om de "
             "weersvergelijking en correlatie-analyse hier toe te voegen.",
         ))
+
+# ======================================================================
+with tab_forecast:
+    st.subheader(t("What the recent trend suggests, if it continues",
+                    "Wat de recente trend suggereert, als die doorzet"))
+    st.caption(t(
+        "Simple, transparent models on data this pipeline already has — no black box, and every number "
+        "ships with its own uncertainty rather than a bare point guess. Method and full limitations in "
+        "`src/forecast.py`.",
+        "Eenvoudige, transparante modellen op data die deze pipeline al heeft — geen black box, en elk "
+        "cijfer heeft zijn eigen onzekerheid in plaats van een kale puntschatting. Methode en volledige "
+        "beperkingen in `src/forecast.py`.",
+    ))
+    st.warning(t(
+        "**Read every chart below as \"if the recent trend continues,\" never a guarantee.** Each series "
+        "is 5–9 real annual points, several with real year-to-year noise (weather, cloud cover, classifier "
+        "wobble) — a straight-line extrapolation on that few, that noisy a sample has a wide honest "
+        "interval, shown as the shaded band. **Read the band, not the dashed line, as the actual answer.**",
+        "**Lees elke grafiek hieronder als \"als de recente trend doorzet,\" nooit als garantie.** Elke "
+        "reeks is 5–9 echte jaarpunten, meerdere met echte jaar-op-jaar ruis (weer, bewolking, "
+        "classifier-wiebel) — een rechte-lijn-extrapolatie op zo weinig, zo'n ruizige steekproef heeft een "
+        "breed eerlijk interval, getoond als de gearceerde band. **Lees de band, niet de gestippelde "
+        "lijn, als het daadwerkelijke antwoord.**",
+    ), icon="🔮")
+
+    if not forecast:
+        st.info(t("Run `python src/forecast.py` (or the full pipeline) to add forecasts here.",
+                   "Draai `python src/forecast.py` (of de hele pipeline) om hier voorspellingen toe te voegen."))
+    else:
+        veg = forecast.get("vegetation") or {}
+        if veg.get("ndvi"):
+            st.divider()
+            st.markdown("#### " + t("Vegetation health (NDVI)", "Vegetatievitaliteit (NDVI)"))
+            f = veg["ndvi"]
+            fc1, fc2, fc3 = st.columns(3)
+            fc1.metric(f"NDVI {f['future_years'][0]}", f"{f['future_values'][0]:.3f}",
+                       delta=f"[{f['future_lower80'][0]:.3f}, {f['future_upper80'][0]:.3f}] 80% CI",
+                       delta_color="off")
+            fc2.metric(t("Trend", "Trend"), f"{f['slope_per_year']:+.4f}/yr")
+            fc3.metric("R²", f"{f['r_squared']:.2f}")
+            st.altair_chart(
+                forecast_chart(f["history_years"], f["history_values"], f["future_years"], f["future_values"],
+                                f["future_lower80"], f["future_upper80"], "NDVI", COLOR_SENTINEL2, value_fmt=".3f"),
+                use_container_width=True,
+            )
+            st.caption(t(
+                f"R²={f['r_squared']:.2f} — the straight line explains only {f['r_squared'] * 100:.0f}% of "
+                "this series' year-to-year variation (real weather noise, see Trends & Climate), so read "
+                "the shaded interval, not the dashed line itself, as the honest forecast.",
+                f"R²={f['r_squared']:.2f} — de rechte lijn verklaart maar {f['r_squared'] * 100:.0f}% van "
+                "de jaar-op-jaar variatie in deze reeks (echte weersruis, zie Trends & Klimaat), dus lees "
+                "de gearceerde band, niet de gestippelde lijn zelf, als de eerlijke voorspelling.",
+            ))
+            if veg.get("ndwi"):
+                with st.expander(t("NDWI forecast too", "Ook NDWI-voorspelling")):
+                    fw = veg["ndwi"]
+                    st.altair_chart(
+                        forecast_chart(fw["history_years"], fw["history_values"], fw["future_years"], fw["future_values"],
+                                        fw["future_lower80"], fw["future_upper80"], "NDWI", COLOR_LANDSAT, value_fmt=".3f", height=180),
+                        use_container_width=True,
+                    )
+
+        lc = forecast.get("landcover") or {}
+        if lc:
+            st.divider()
+            _lc_last_year = next(iter(lc.values()))["future_years"][-1]
+            st.markdown("#### " + t(f"Land cover, projected to {_lc_last_year}", f"Landgebruik, geprojecteerd tot {_lc_last_year}"))
+            st.caption(t(
+                "Same four categories and common-footprint methodology as the Trends & Climate tab's "
+                "historical series — Forest and Water are the more spectrally stable, more trustworthy "
+                "projections; Built-up specifically inherits that series' own real classifier-wobble "
+                "caveat, now compounded by a wide extrapolation interval on top of it.",
+                "Dezelfde vier categorieën en common-footprint-methodologie als de historische reeks in "
+                "Trends & Klimaat — Bos en Water zijn de spectraal stabielere, betrouwbaardere projecties; "
+                "Bebouwd erft specifiek de eigen classifier-wiebel-kanttekening van die reeks, nu nog eens "
+                "vergroot door een breed extrapolatie-interval.",
+            ))
+            _lc_cols = st.columns(len(lc))
+            for _lc_col, (cat, f) in zip(_lc_cols, lc.items()):
+                with _lc_col:
+                    st.markdown(f"**{cat}**")
+                    st.altair_chart(
+                        forecast_chart(f["history_years"], f["history_values"], f["future_years"], f["future_values"],
+                                        f["future_lower80"], f["future_upper80"], "ha", LANDCOVER_TREND_COLORS.get(cat, "#51604F"), height=170),
+                        use_container_width=True,
+                    )
+                    st.caption(f"{f['future_years'][-1]}: {f['future_values'][-1]:,.0f} ha")
+
+        pop = forecast.get("population") or {}
+        if pop:
+            st.divider()
+            st.markdown("#### " + t("Population & housing stock", "Bevolking & woningvoorraad"))
+            st.caption(t(
+                "Real CBS registry counts (same source as the Villages tab), extrapolated — housing stock "
+                "in particular is a near-straight administrative series (R² shown below), so this is the "
+                "single most defensible forecast on this whole tab.",
+                "Echte CBS-registratieaantallen (zelfde bron als het tabblad Kernen), geëxtrapoleerd — "
+                "vooral de woningvoorraad is een bijna rechte administratieve reeks (R² hieronder), dus dit "
+                "is de meest verdedigbare voorspelling op dit hele tabblad.",
+            ))
+            pc1, pc2 = st.columns(2)
+            if pop.get("population"):
+                f = pop["population"]
+                with pc1:
+                    st.altair_chart(
+                        forecast_chart(f["history_years"], f["history_values"], f["future_years"], f["future_values"],
+                                        f["future_lower80"], f["future_upper80"], t("Residents", "Inwoners"), COLOR_SENTINEL2),
+                        use_container_width=True,
+                    )
+                    st.caption(t(
+                        f"R²={f['r_squared']:.2f} · {f['future_years'][-1]}: {f['future_values'][-1]:,.0f} "
+                        f"[{f['future_lower80'][-1]:,.0f}, {f['future_upper80'][-1]:,.0f}]",
+                        f"R²={f['r_squared']:.2f} · {f['future_years'][-1]}: {f['future_values'][-1]:,.0f} "
+                        f"[{f['future_lower80'][-1]:,.0f}, {f['future_upper80'][-1]:,.0f}]",
+                    ))
+            if pop.get("housing_stock"):
+                f = pop["housing_stock"]
+                with pc2:
+                    st.altair_chart(
+                        forecast_chart(f["history_years"], f["history_values"], f["future_years"], f["future_values"],
+                                        f["future_lower80"], f["future_upper80"], t("Homes", "Woningen"), COLOR_TEMP),
+                        use_container_width=True,
+                    )
+                    st.caption(t(
+                        f"R²={f['r_squared']:.2f} · {f['future_years'][-1]}: {f['future_values'][-1]:,.0f} "
+                        f"[{f['future_lower80'][-1]:,.0f}, {f['future_upper80'][-1]:,.0f}]",
+                        f"R²={f['r_squared']:.2f} · {f['future_years'][-1]}: {f['future_values'][-1]:,.0f} "
+                        f"[{f['future_lower80'][-1]:,.0f}, {f['future_upper80'][-1]:,.0f}]",
+                    ))
+
+        cr = forecast.get("crop_rotation") or {}
+        if cr.get("transition_matrix"):
+            st.divider()
+            st.markdown("#### " + t("Crop rotation: what's likely next, per field", "Gewasrotatie: wat waarschijnlijk volgt, per perceel"))
+            st.caption(t(
+                f"Not a trend line — a first-order Markov chain: the empirical probability that a field "
+                f"grown as one crop family is each other family the following year, from "
+                f"{cr['n_transitions_observed']:,} real transitions in this pipeline's own matched "
+                "BRP history (crop_rotation.py). Projected area below is an expected value — each field's "
+                "own area spread across next year's families by its own family's observed probabilities, "
+                "not a hard per-field call.",
+                f"Geen trendlijn — een Markov-keten van de eerste orde: de empirische kans dat een perceel "
+                f"met de ene gewasfamilie het jaar erop een andere familie heeft, op basis van "
+                f"{cr['n_transitions_observed']:,} echte overgangen in de eigen gematchte BRP-geschiedenis "
+                "van deze pipeline (crop_rotation.py). De voorspelde oppervlakte hieronder is een "
+                "verwachtingswaarde — de oppervlakte per perceel verdeeld over de families van volgend "
+                "jaar volgens de eigen waargenomen kansen van die familie, geen harde keuze per perceel.",
+            ))
+            _fam_series = load_brp_gdf().apply(lambda r: classify_crop(r["gewas"], r["category"]), axis=1)
+            _current_family_ha = load_brp_gdf().groupby(_fam_series)["area_ha"].sum().round(1).to_dict()
+            st.altair_chart(
+                crop_family_forecast_chart(_current_family_ha, cr["projected_area_ha_next_year"]),
+                use_container_width=True,
+            )
+            st.info(t(
+                "**See it on the map, per field:** switch Field Explorer's \"Colour fields by\" to "
+                "**🔮 Predicted next crop (ML)** — each field is coloured by its own most likely next-year "
+                "family, with the predicted probability in its tooltip.",
+                "**Bekijk het op de kaart, per perceel:** zet \"Percelen kleuren op\" in Perceelverkenner op "
+                "**🔮 Voorspeld volgend gewas (ML)** — elk perceel is gekleurd naar de eigen meest "
+                "waarschijnlijke gewasfamilie van volgend jaar, met de voorspelde kans in de tooltip.",
+            ))
 
 # ======================================================================
 with tab_env:

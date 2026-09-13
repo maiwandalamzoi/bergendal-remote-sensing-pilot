@@ -11,6 +11,7 @@ rasterio==1.4.4
 requests==2.31.0
 rioxarray==0.19.0
 scikit-learn==1.8.0
+scipy==1.17.1
 shapely==2.1.2
 streamlit==1.57.0
 streamlit-folium==0.27.4

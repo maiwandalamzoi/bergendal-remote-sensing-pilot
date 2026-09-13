@@ -54,6 +54,7 @@ from fetch_air_quality_trend import run as run_air_quality_trend
 from fetch_villages import fetch_all as fetch_villages
 from fetch_soil import run as run_soil
 from cbs_trend import run as run_cbs_trend
+from forecast import build as run_forecast
 from visualize import build_map
 
 DATES = [
@@ -132,6 +133,10 @@ def main():
 
     print("\n== 3j. cbs trend: population & housing stock, 2018-2024 ==")
     run_cbs_trend()
+
+    print("\n== 3k. forecast: OLS trend + prediction intervals (vegetation/land cover/population), "
+          "crop-family Markov transition matrix (reads stats + brp_parcels.geojson already on disk, no fetch) ==")
+    run_forecast()
 
     print("\n== 4. visualize: PNG maps + interactive layer-toggle map ==")
     map_path = build_map("summer_2025", "summer_2024")
