@@ -134,6 +134,17 @@ button[data-baseweb="tab"][aria-selected="true"] { color: var(--forest) !importa
   padding: 12px 16px; box-shadow: 0 1px 2px rgba(22,34,28,.05); }
 .bd-stat-num { font-family: "Fraunces", Georgia, serif; font-weight: 600; font-size: 1.5rem; color: var(--forest); line-height: 1.1; }
 .bd-stat-lbl { color: var(--ink-2); font-size: .8rem; margin-top: 2px; }
+@media print {
+  [data-testid="stSidebar"], header[data-testid="stHeader"],
+  [data-testid="stToolbar"], button[data-baseweb="tab"] { display: none !important; }
+  [data-testid="stAppViewContainer"] { margin-left: 0 !important; }
+  .bd-header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .bd-print-stamp { display: block !important; }
+  /* Streamlit tabs already hide every panel but the active one via its
+     own display:none -- print naturally captures just that one tab,
+     the same thing the button below is for. */
+}
+.bd-print-stamp { display: none; color: var(--ink-2); font-size: .8rem; margin: 4px 0 16px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -148,7 +159,7 @@ def get_stats() -> dict:
 
 
 @st.cache_data
-def get_map_html(lang: str) -> str:
+def get_map_html(lang: str, village: str | None) -> str:
     """A folium Map's own .render() is NOT idempotent -- calling it twice on
     the same object produces two different (and, via st_folium, two BROKEN)
     HTML documents; a plain JS ReferenceError inside the component's iframe
@@ -156,10 +167,10 @@ def get_map_html(lang: str) -> str:
     diffing the output. Streamlit reruns the script more than once on first
     load, and st_folium's own render call was hitting that same object
     every time under @st.cache_resource. Rendering once here, to a plain
-    string cached with @st.cache_data (keyed on `lang` too, so switching
-    languages gets its own cached render), and embedding that string
-    (below) is immune to it -- there's nothing left to re-render."""
-    return make_map(lang=lang).get_root().render()
+    string cached with @st.cache_data (keyed on `lang` and `village` too,
+    so switching either gets its own cached render), and embedding that
+    string (below) is immune to it -- there's nothing left to re-render."""
+    return make_map(lang=lang, village=village).get_root().render()
 
 
 _last_updated = (
@@ -235,15 +246,33 @@ with st.sidebar:
                 f"{_v['population']:,} residents · {_v['land_area_ha']:,.0f} ha" if _v["population"] else "",
                 f"{_v['population']:,} inwoners · {_v['land_area_ha']:,.0f} ha" if _v["population"] else "",
             ))
-        st.caption(t("Applies to the Field Explorer map (other tabs stay municipality-wide).",
-                     "Geldt voor de kaart in Perceelverkenner (andere tabbladen blijven gemeentebreed)."))
+        st.caption(t("Applies to the Overview and Field Explorer maps (other tabs stay municipality-wide).",
+                     "Geldt voor de kaarten in Overzicht en Perceelverkenner (andere tabbladen blijven gemeentebreed)."))
     else:
         selected_village = None
+    st.divider()
+    st.markdown(f"**{t('Print / export', 'Afdrukken / exporteren')}**")
+    if st.button("🖨️ " + t("Print this tab", "Print dit tabblad"), use_container_width=True):
+        st.components.v1.html("<script>window.parent.print();</script>", height=0)
+    st.caption(t(
+        "Opens your browser's print dialog for whichever tab is open — 'Save as PDF' there makes it a "
+        "report. The sidebar and toolbar are hidden automatically on print.",
+        "Opent het afdrukdialoogvenster van je browser voor het geopende tabblad — 'Opslaan als PDF' "
+        "daar maakt er een rapport van. De zijbalk en werkbalk worden automatisch verborgen bij afdrukken.",
+    ))
     st.divider()
     st.caption(t(
         "Data: Sentinel-1/2, Landsat, AHN LiDAR, KNMI, RIVM, CBS, BRP, ISRIC SoilGrids. See README.md.",
         "Data: Sentinel-1/2, Landsat, AHN LiDAR, KNMI, RIVM, CBS, BRP, ISRIC SoilGrids. Zie README.md.",
     ))
+
+_print_scope = selected_village or t("Berg en Dal (whole municipality)", "Berg en Dal (hele gemeente)")
+_print_date = datetime.date.today().strftime("%d %B %Y")
+st.markdown(
+    f'<div class="bd-print-stamp">{t("Printed", "Afgedrukt")} {_print_date} · '
+    f'{t("Berg en Dal remote sensing pilot", "Berg en Dal aardobservatie-pilot")} · {_print_scope}</div>',
+    unsafe_allow_html=True,
+)
 
 _span = (f"{trend['years'][0]}–{trend['years'][-1]}" if trend.get("years") else "n/a")
 _n_years = (trend["years"][-1] - trend["years"][0] + 1) if trend.get("years") else 0
@@ -589,7 +618,10 @@ with tab_overview:
     # not a sidebar thumbnail -- every layer (true colour, NDVI, land cover,
     # both flood-extent methods, SAR, elevation, BRP fields...) toggles from
     # its own control at top-right, translated with the rest of the page.
-    st.components.v1.html(get_map_html(LANG), height=760)
+    if selected_village:
+        st.caption("📍 " + t(f"Zoomed to **{selected_village}** (outlined) — change in the sidebar.",
+                              f"Ingezoomd op **{selected_village}** (omlijnd) — wijzig in de zijbalk."))
+    st.components.v1.html(get_map_html(LANG, selected_village), height=760)
 
     st.divider()
     st.subheader(t("Land cover (KMeans, satellite-derived)", "Landgebruik (KMeans, satellietafgeleid)"))

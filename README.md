@@ -129,8 +129,21 @@ or open `outputs/bergendal_map.html` directly in a browser for just the map.
    municipality-wide population/housing-stock growth 2018-2024
    (`cbs_trend.py`) for context. The sidebar's village selector filters
    the Field Explorer map to just that place's real administrative
-   boundary (other tabs stay municipality-wide, stated explicitly rather
-   than left ambiguous).
+   boundary *and* zooms/outlines it on the Overview map too
+   (`make_map(village=...)` fits the map's bounds to the village polygon
+   and draws it as its own toggleable layer) — picking a village in the
+   sidebar now visibly moves both maps, not just one (other tabs stay
+   municipality-wide, stated explicitly rather than left ambiguous).
+
+   **Map controls & print report** — both Folium maps (Overview and Field
+   Explorer) carry a real Leaflet fullscreen control
+   (`folium.plugins.Fullscreen`, top-left), and the sidebar has a
+   "Print this tab" button that triggers the browser's own print dialog
+   (`window.parent.print()`, since the map lives in an `st.components.v1`
+   iframe) against dedicated print CSS that hides the sidebar, Streamlit's
+   header/toolbar and the tab bar, and stamps the printed page with the
+   date and the current village/whole-municipality scope — a plain
+   "save the page as PDF" rather than a separate export pipeline.
 
    **Trends & Climate** is the 22-year analysis tab: a **Year Explorer**
    widget up top (`st.select_slider`) that pulls every number this
@@ -303,8 +316,14 @@ to pasture at that scale.
   Groesbeek, Millingen aan de Rijn and Ubbergen), from CBS's own "wijken"
   (district) boundaries and population/area — the same PDOK WFS
   `fetch_cbs.py` already uses, one geographic level down. Powers the
-  dashboard's village selector (Field Explorer map filters to whichever
-  village is picked).
+  dashboard's village selector (both maps zoom/filter to whichever village
+  is picked, see **Map controls & print report** below). A real precision
+  bug fixed while wiring the Field Explorer's parcel filter: each field's
+  centroid was tested against the village polygon in geographic
+  (WGS84/EPSG:4326) coordinates, where degrees of longitude aren't
+  constant-length — fixed by reprojecting both to RD New (EPSG:28992,
+  the Dutch planar CRS already used elsewhere in this pipeline) before
+  the `.within()` test.
 - **`src/fetch_soil.py`** — organic carbon, pH, nitrogen, texture
   (clay/sand/silt), bulk density and cation exchange capacity, sampled at
   real BRP farmland-parcel centroids via ISRIC SoilGrids (a free, no-key,

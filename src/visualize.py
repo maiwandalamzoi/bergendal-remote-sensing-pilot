@@ -10,7 +10,7 @@ import folium
 import numpy as np
 import pandas as pd
 import rasterio
-from folium.plugins import MarkerCluster
+from folium.plugins import Fullscreen, MarkerCluster
 from matplotlib import colormaps
 from matplotlib.colors import Normalize, ListedColormap
 from PIL import Image
@@ -304,7 +304,13 @@ def field_explorer_map(color_by: str = "category", center: list | None = None, l
             match = villages[villages["wijknaam"] == village]
             if len(match):
                 village_geom = match.geometry.iloc[0]
-                gdf = gdf[gdf.geometry.centroid.within(village_geom)]
+                # Centroid-in-village test done in RD New (a projected,
+                # metric CRS) -- the same fix already applied elsewhere in
+                # this file (crop-icon markers, soil sampling) for the same
+                # "plain lon/lat centroid is geometrically off" reason.
+                gdf_for_filter = gdf.to_crs(28992)
+                village_geom_rd = gpd.GeoSeries([village_geom], crs=4326).to_crs(28992).iloc[0]
+                gdf = gdf[gdf_for_filter.geometry.centroid.within(village_geom_rd).values]
     gdf_rd = gdf.to_crs(28992)
     gdf_rd["geometry"] = gdf_rd.geometry.simplify(4, preserve_topology=True)
 
@@ -359,6 +365,9 @@ def field_explorer_map(color_by: str = "category", center: list | None = None, l
 
     m = folium.Map(location=center, zoom_start=14 if village else 13, tiles="OpenStreetMap",
                     control_scale=True, prefer_canvas=True)
+    Fullscreen(position="topleft",
+               title="Fullscreen" if lang == "en" else "Volledig scherm",
+               title_cancel="Exit fullscreen" if lang == "en" else "Volledig scherm sluiten").add_to(m)
 
     i = 0 if lang == "en" else 1
     tooltip_aliases = [
@@ -520,11 +529,15 @@ def ndsm_png() -> tuple[Path, list]:
     return out_path, _bounds_wgs84(profile)
 
 
-def make_map(label_new: str = "summer_2025", label_old: str = "summer_2024", lang: str = "en") -> folium.Map:
+def make_map(label_new: str = "summer_2025", label_old: str = "summer_2024", lang: str = "en",
+             village: str | None = None) -> folium.Map:
     """Builds the folium.Map object without saving it -- used directly by
     build_map() below and embedded live in dashboard.py. `lang` ("en"/"nl")
     switches every layer name and legend on the map itself, not just the
-    Streamlit chrome around it."""
+    Streamlit chrome around it. `village`, a name from data/raw/villages.geojson,
+    zooms to that place and outlines its real administrative boundary
+    on top of every imagery layer -- the same village the sidebar's
+    selector already filters Field Explorer to."""
     i = 0 if lang == "en" else 1
     tc_path, bounds = true_color_png(label_new)
     ndvi_path, _ = ndvi_png(label_new)
@@ -542,8 +555,31 @@ def make_map(label_new: str = "summer_2025", label_old: str = "summer_2024", lan
     no2_path, no2_bounds = air_quality_png("no2")
     brp_path, brp_bounds, brp_colors = brp_png()
 
-    center = [(bounds[0][0] + bounds[1][0]) / 2, (bounds[0][1] + bounds[1][1]) / 2]
-    m = folium.Map(location=center, zoom_start=12, tiles="OpenStreetMap", control_scale=True)
+    village_geom_wgs84 = None
+    village_bounds = None
+    if village:
+        import geopandas as gpd
+        villages_path = RAW_DIR / "villages.geojson"
+        if villages_path.exists():
+            villages_gdf = gpd.read_file(villages_path)
+            match = villages_gdf[villages_gdf["wijknaam"] == village]
+            if len(match):
+                village_geom_wgs84 = match.geometry.iloc[0]
+                vminx, vminy, vmaxx, vmaxy = match.total_bounds
+                village_bounds = [[vminy, vminx], [vmaxy, vmaxx]]
+
+    if village_bounds:
+        center = [(village_bounds[0][0] + village_bounds[1][0]) / 2, (village_bounds[0][1] + village_bounds[1][1]) / 2]
+        zoom_start = 14
+    else:
+        center = [(bounds[0][0] + bounds[1][0]) / 2, (bounds[0][1] + bounds[1][1]) / 2]
+        zoom_start = 12
+    m = folium.Map(location=center, zoom_start=zoom_start, tiles="OpenStreetMap", control_scale=True)
+    Fullscreen(position="topleft",
+               title="Fullscreen" if lang == "en" else "Volledig scherm",
+               title_cancel="Exit fullscreen" if lang == "en" else "Volledig scherm sluiten").add_to(m)
+    if village_bounds:
+        m.fit_bounds(village_bounds)
 
     layer_names = [
         ("True colour (Aug 2025)", "Ware kleur (aug. 2025)"),
@@ -585,6 +621,14 @@ def make_map(label_new: str = "summer_2025", label_old: str = "summer_2024", lan
         name=names[12],
         style_function=lambda x: {"fillOpacity": 0, "color": "#16221C", "weight": 2},
     ).add_to(m)
+
+    if village_geom_wgs84 is not None:
+        village_layer_name = f"📍 {village}" if lang == "en" else f"📍 {village}"
+        folium.GeoJson(
+            village_geom_wgs84.__geo_interface__,
+            name=village_layer_name,
+            style_function=lambda x: {"fillColor": "#4a3aa7", "fillOpacity": 0.08, "color": "#4a3aa7", "weight": 3},
+        ).add_to(m)
 
     legend_rows = "".join(
         f'<div style="display:flex;align-items:center;gap:6px;margin:2px 0;">'
