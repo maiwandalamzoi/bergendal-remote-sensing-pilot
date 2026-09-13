@@ -1,0 +1,10 @@
+venv/
+__pycache__/
+*.pyc
+
+# Raw and intermediate rasters are large and fully reproducible from
+# run_pipeline.py -- don't version them.
+data/raw/
+data/processed/
+outputs/*.png
+outputs/*.html
