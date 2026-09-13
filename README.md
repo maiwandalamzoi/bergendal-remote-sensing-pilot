@@ -110,17 +110,27 @@ or open `outputs/bergendal_map.html` directly in a browser for just the map.
    them as toggleable overlays. The map's own layer names and legends
    switch language too (`make_map(lang=...)` / `field_explorer_map(lang=...)`)
    — the dashboard's language switch isn't just the Streamlit chrome around it.
-7. **Dashboard** (`dashboard.py`) — a Streamlit app with a real English/
-   Dutch language switch (top-right; every UI string routes through one
-   `t(en, nl)` call keyed off `st.session_state.lang` — not both languages
-   shown inline at once) across seven tabs: Overview, **Field Explorer**,
-   Land & Crops, **Trends & Climate**, Environment & Energy, Water, and a
+7. **Dashboard** (`dashboard.py`) — a Streamlit app with a sidebar (real
+   English/Dutch language switch — every UI string routes through one
+   `t(en, nl)` call keyed off `st.session_state.lang`, not both languages
+   shown inline at once — plus a village/place selector, see **Villages**
+   below) and eight tabs: Overview, **Field Explorer**, **Villages**, Land
+   & Crops, **Trends & Climate**, Environment & Energy, Water, and a
    Business case tab spelling out who'd actually pay for this and what the
    real remaining data gaps are. Genuinely Dutch data values (BRP crop and
    category names) stay Dutch regardless of the switch — those are real
    registry records, not UI chrome to translate. Everything reads from
    `data/processed/stats.json` (each stage writes its own summary there via
    `src/statsutil.py` — nothing is recomputed for display).
+
+   **Villages** lists all 13 real places inside the municipality (real CBS
+   district boundaries and population/area, not estimated), with a
+   population and an area chart, a full detail table, and the
+   municipality-wide population/housing-stock growth 2018-2024
+   (`cbs_trend.py`) for context. The sidebar's village selector filters
+   the Field Explorer map to just that place's real administrative
+   boundary (other tabs stay municipality-wide, stated explicitly rather
+   than left ambiguous).
 
    **Trends & Climate** is the 22-year analysis tab: a **Year Explorer**
    widget up top (`st.select_slider`) that pulls every number this
@@ -254,6 +264,80 @@ pasture status) is the single most common "transition" — a registry
 reclassification, not a physical land-use change, called out explicitly
 in the dashboard rather than left to read as farmers converting cropland
 to pasture at that scale.
+
+### Land cover, air quality & population change over time; soil; villages
+
+- **`src/landcover_trend.py`** — built-up, forest/dense vegetation,
+  agriculture and water as real hectares, 2018-present, re-running
+  `landcover_ml.classify()` for every Sentinel-2 year already on disk (no
+  new fetching). A real bug found and fixed while building it: comparing
+  each year's *raw* classified hectares directly produced an implausible
+  swing (built-up area apparently halving then partly regrowing) because
+  each year's cloud-free footprint differs in size — fixed by restricting
+  every year's count to the pixels valid in *all* years (a fixed,
+  common-footprint denominator), documented in the module's own
+  docstring. Even after the fix, "Built-up / bare" specifically stays
+  noisier than "Forest" or "Water" (an unsupervised 6-cluster classifier
+  can relabel bare/just-harvested cropland as built-up between one year's
+  centroid fit and the next) — named as a real limitation, not smoothed
+  over, with BAG (the building registry) flagged as the real cross-check
+  this hasn't been validated against yet.
+- **`src/fetch_air_quality_trend.py`** — NO2/PM10/PM2.5/EC, 2013-2024,
+  from the same RIVM WCS `fetch_air_quality.py` already uses, checked
+  directly against its own capabilities list for which years it actually
+  publishes (all four, every year). **A real bug found and fixed:** some
+  older coverages (checked directly, e.g. 2014's NO2) declare
+  `nodata=0.0` in their own GDAL profile but actually fill nodata pixels
+  with float32's most-negative value instead, corrupting a mean computed
+  by excluding only the declared nodata to `-inf`. Fixed with a physical
+  sanity bound (no real concentration is negative or above 1000 µg/m³),
+  applied to both the trend fetcher and the original single-year one.
+  **Finding:** all four pollutants fell over this period (real, documented
+  Dutch/EU air-quality improvement), with a clear, real 2020 dip and 2021
+  recovery — the documented COVID-19 lockdown traffic drop. EC (elemental
+  carbon / soot) is included as the closest real combustion proxy this
+  free service has, since neither CO2/GHG nor NH3 turned out to be
+  reachable — see below.
+- **`src/fetch_villages.py`** — the 13 real villages/hamlets inside the
+  municipality (Berg en Dal is a 2015 merger of the former municipalities
+  Groesbeek, Millingen aan de Rijn and Ubbergen), from CBS's own "wijken"
+  (district) boundaries and population/area — the same PDOK WFS
+  `fetch_cbs.py` already uses, one geographic level down. Powers the
+  dashboard's village selector (Field Explorer map filters to whichever
+  village is picked).
+- **`src/fetch_soil.py`** — organic carbon, pH, nitrogen, texture
+  (clay/sand/silt), bulk density and cation exchange capacity, sampled at
+  real BRP farmland-parcel centroids via ISRIC SoilGrids (a free, no-key,
+  global 250m soil model). Not the first choice: PDOK/BRO's own Dutch
+  soil map (Bodemkaart) has no discoverable public WFS/WMS under any of
+  the endpoint patterns this pipeline's other PDOK services use (checked
+  directly, several naming variants tried), and its province-level
+  alternatives found via data.overheid.nl (Utrecht, Zeeland, Zuid-Holland)
+  don't cover Gelderland — a real methodology substitution, documented
+  rather than silent. SoilGrids itself needed two fixes: a point can land
+  on open water in this river-adjacent AOI and return null (worked around
+  by sampling many parcel centroids and averaging the real ones), and its
+  free-tier rate limit needed real pacing (5s between requests) plus
+  retry-on-429 handling.
+- **`src/cbs_trend.py`** — population and housing stock, 2018-2024, from
+  CBS's own per-year WFS republications. A real fix: 2018/2019 use a
+  year-suffixed type name (`gemeenten2018`) that later years dropped for
+  a plain `gemeenten` — checked directly rather than silently skipping
+  those two years. `src/fetch_cbs.py` itself was also extended from ~18
+  fields to most of the non-suppressed fields the same WFS record already
+  carries (demographics, housing value/tenure/type, a full 7-sector
+  business breakdown, benefit-recipient counts) — real municipal detail
+  that was sitting in a response this pipeline was already making.
+
+**What CO2/GHG and NH3 turned out to actually require, checked directly
+rather than assumed:** municipal-level CO2/GHG (Klimaatmonitor, the
+standard Dutch source) sits behind an authenticated OData API — confirmed
+by an HTTP 401 "Guest user group not found, No access!" response, not
+merely unfetched. NH3/nitrogen deposition (RIVM's GDN/AERIUS product) has
+no public WCS/WFS at all, under any of the endpoint patterns RIVM's own
+other services (used successfully elsewhere in this pipeline) follow.
+Both are named gaps with a specific, checked reason, not silent
+omissions — see the Environment & Energy tab.
 
 ## What it found (first pass)
 

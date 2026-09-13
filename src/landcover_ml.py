@@ -125,19 +125,30 @@ def classify(label: str) -> Path:
     with rasterio.open(out_path, "w", **out_profile) as dst:
         dst.write(out[np.newaxis, :, :])
 
+    # Sentinel-2 10m grid = 100 m2/px = 0.01 ha/px -- hectares (not just %
+    # of that year's clear ground) is what a year-over-year "how much did
+    # X actually grow" comparison needs, since clear-ground coverage
+    # itself varies year to year (cloud) and a %-of-clear-ground figure
+    # alone would silently conflate "more built-up" with "less cloud."
+    HA_PER_PX = 0.01
     print(f"[{label}] land cover clusters:")
-    class_pcts = {}
+    class_pcts, class_ha = {}, {}
     for cid in range(N_CLUSTERS):
-        pct = (cluster_ids == cid).mean() * 100
-        print(f"  cluster {cid:>2} = {names[cid]:<26} {pct:5.1f}% of clear ground")
+        n_px = int((cluster_ids == cid).sum())
+        pct = n_px / len(cluster_ids) * 100
+        ha = n_px * HA_PER_PX
+        print(f"  cluster {cid:>2} = {names[cid]:<26} {pct:5.1f}% of clear ground  ({ha:7.1f} ha)")
         class_pcts[names[cid]] = class_pcts.get(names[cid], 0.0) + round(float(pct), 1)
+        class_ha[names[cid]] = class_ha.get(names[cid], 0.0) + round(float(ha), 1)
 
     legend_path = OUT_DIR / f"{label}_landcover_legend.txt"
     with open(legend_path, "w") as f:
         for cid in range(N_CLUSTERS):
             f.write(f"{cid}\t{names[cid]}\n")
 
-    update_stats(f"landcover_{label}", {"n_clusters": N_CLUSTERS, "class_pct": class_pcts})
+    update_stats(f"landcover_{label}", {
+        "n_clusters": N_CLUSTERS, "class_pct": class_pcts, "class_ha": class_ha,
+    })
     return out_path
 
 

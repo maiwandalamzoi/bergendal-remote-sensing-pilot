@@ -49,6 +49,11 @@ from ndvi_trend import build_trend as build_ndvi_trend
 from flood_event import run as run_flood_event
 from fetch_weather import run as fetch_weather
 from climate_correlation import run as run_climate_correlation
+from landcover_trend import build_trend as build_landcover_trend
+from fetch_air_quality_trend import run as run_air_quality_trend
+from fetch_villages import fetch_all as fetch_villages
+from fetch_soil import run as run_soil
+from cbs_trend import run as run_cbs_trend
 from visualize import build_map
 
 DATES = [
@@ -112,6 +117,21 @@ def main():
 
     print("\n== 3e. climate correlation: NDVI/NDWI trend vs August weather ==")
     run_climate_correlation()
+
+    print("\n== 3f. land cover trend: built-up/forest/agriculture/water area, 2018-present ==")
+    build_landcover_trend()
+
+    print("\n== 3g. air quality trend: NO2/PM10/PM2.5/EC, 2013-2024 (RIVM WCS, ~48 fetches) ==")
+    run_air_quality_trend()
+
+    print("\n== 3h. villages: the 13 real places inside the municipality (CBS wijken) ==")
+    fetch_villages()
+
+    print("\n== 3i. soil: organic carbon/pH/nitrogen/texture from ISRIC SoilGrids (~40 points, rate-limited) ==")
+    run_soil()
+
+    print("\n== 3j. cbs trend: population & housing stock, 2018-2024 ==")
+    run_cbs_trend()
 
     print("\n== 4. visualize: PNG maps + interactive layer-toggle map ==")
     map_path = build_map("summer_2025", "summer_2024")

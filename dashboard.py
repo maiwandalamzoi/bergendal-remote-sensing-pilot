@@ -139,12 +139,6 @@ button[data-baseweb="tab"][aria-selected="true"] { color: var(--forest) !importa
 
 STATS_PATH = Path(__file__).resolve().parent / "data" / "processed" / "stats.json"
 
-_top_gutter, _lang_slot = st.columns([6, 1])
-with _lang_slot:
-    _lang_choice = st.segmented_control(
-        "Language", options=["en", "nl"], format_func=lambda k: {"en": "English", "nl": "Nederlands"}[k],
-        default=st.session_state["lang"], label_visibility="collapsed", key="lang",
-    )
 LANG = st.session_state.get("lang", "en")
 
 
@@ -212,6 +206,44 @@ landcover = stats.get("landcover_summer_2025", {}).get("class_pct", {})
 cbs = stats.get("cbs", {})
 brp = stats.get("brp", {})
 air = stats.get("air_quality", {})
+landcover_trend = stats.get("landcover_trend", {})
+air_quality_trend = stats.get("air_quality_trend", {})
+villages = stats.get("villages", {}).get("list", [])
+soil = stats.get("soil", {})
+cbs_trend = stats.get("cbs_trend", {})
+
+with st.sidebar:
+    st.markdown(f"### 🛰️ {t('Berg en Dal pilot', 'Berg en Dal-pilot')}")
+    st.caption(t("Real satellite, LiDAR & registry data — nothing simulated.",
+                 "Echte satelliet-, LiDAR- en registratiedata — niets gesimuleerd."))
+    st.markdown(f"**{t('Language', 'Taal')}**")
+    st.segmented_control(
+        "Language", options=["en", "nl"], format_func=lambda k: {"en": "English", "nl": "Nederlands"}[k],
+        default=st.session_state["lang"], label_visibility="collapsed", key="lang",
+    )
+    st.divider()
+    st.markdown(f"**{t('Village / place', 'Plaats / kern')}**")
+    _village_options = [t("All of Berg en Dal", "Heel Berg en Dal")] + [v["name"] for v in villages]
+    selected_village = st.selectbox(
+        t("Filter Field Explorer to:", "Perceelverkenner filteren op:"),
+        options=_village_options, label_visibility="collapsed", key="village",
+    )
+    if selected_village != _village_options[0]:
+        _v = next((v for v in villages if v["name"] == selected_village), None)
+        if _v:
+            st.caption(t(
+                f"{_v['population']:,} residents · {_v['land_area_ha']:,.0f} ha" if _v["population"] else "",
+                f"{_v['population']:,} inwoners · {_v['land_area_ha']:,.0f} ha" if _v["population"] else "",
+            ))
+        st.caption(t("Applies to the Field Explorer map (other tabs stay municipality-wide).",
+                     "Geldt voor de kaart in Perceelverkenner (andere tabbladen blijven gemeentebreed)."))
+    else:
+        selected_village = None
+    st.divider()
+    st.caption(t(
+        "Data: Sentinel-1/2, Landsat, AHN LiDAR, KNMI, RIVM, CBS, BRP, ISRIC SoilGrids. See README.md.",
+        "Data: Sentinel-1/2, Landsat, AHN LiDAR, KNMI, RIVM, CBS, BRP, ISRIC SoilGrids. Zie README.md.",
+    ))
 
 _span = (f"{trend['years'][0]}–{trend['years'][-1]}" if trend.get("years") else "n/a")
 _n_years = (trend["years"][-1] - trend["years"][0] + 1) if trend.get("years") else 0
@@ -379,6 +411,81 @@ def correlation_chart(correlations: dict) -> alt.Chart:
     return alt.layer(chart, zero_line).configure_view(strokeWidth=0).configure_axis(**CHART_AXIS_KW)
 
 
+LANDCOVER_TREND_COLORS = {
+    "Forest / dense vegetation": "#008300",
+    "Agriculture": "#eda100",
+    "Built-up": "#e34948",
+    "Water": "#2a78d6",
+}
+
+
+def landcover_trend_chart(years: list, values: list, category: str) -> alt.Chart:
+    """One land-cover category's area over time -- small multiple (own
+    y-axis, own colour from the family palette already used elsewhere),
+    not stacked/normalized: stacking four series with wildly different
+    absolute scale (forest ~5800ha vs built-up ~350ha) would visually
+    flatten the smaller ones to a sliver."""
+    df = pd.DataFrame({"year": years, "ha": values})
+    color = LANDCOVER_TREND_COLORS.get(category, "#51604F")
+    chart = alt.Chart(df).mark_area(
+        line={"color": color, "strokeWidth": 2},
+        color=alt.Gradient(
+            gradient="linear",
+            stops=[alt.GradientStop(color=color, offset=0), alt.GradientStop(color="#ffffff", offset=1)],
+            x1=1, x2=1, y1=1, y2=0,
+        ),
+        opacity=0.55,
+    ).encode(
+        x=alt.X("year:O", title=None, axis=alt.Axis(labelAngle=-45)),
+        y=alt.Y("ha:Q", title="ha", scale=alt.Scale(zero=False)),
+        tooltip=[alt.Tooltip("year:O", title=t("Year", "Jaar")), alt.Tooltip("ha:Q", title="ha", format=",.0f")],
+    ).properties(height=150)
+    return chart.configure_view(strokeWidth=0).configure_axis(**CHART_AXIS_KW)
+
+
+def air_quality_trend_chart(years: list, values: list, pollutant: str, color: str) -> alt.Chart:
+    """One pollutant's annual mean over time -- same small-multiple
+    treatment as the weather charts, plus a highlight ring on 2020 (the
+    documented COVID-19 lockdown traffic dip) when that year is present."""
+    df = pd.DataFrame({"year": years, "value": values})
+    base = alt.Chart(df).encode(
+        x=alt.X("year:O", title=None, axis=alt.Axis(labelAngle=-45)),
+        y=alt.Y("value:Q", title="µg/m³", scale=alt.Scale(zero=False)),
+    )
+    line = base.mark_line(color=color, strokeWidth=2)
+    points = base.mark_point(size=55, filled=True, color=color).encode(
+        tooltip=[alt.Tooltip("year:O", title=t("Year", "Jaar")), alt.Tooltip("value:Q", title=pollutant, format=".1f")],
+    )
+    layers = [line, points]
+    if 2020 in years:
+        covid_df = df[df["year"] == 2020]
+        ring = alt.Chart(covid_df).mark_point(size=160, filled=False, strokeWidth=2, color=COLOR_DROUGHT).encode(
+            x="year:O", y="value:Q",
+        )
+        layers.append(ring)
+    return (
+        alt.layer(*layers).properties(height=170)
+        .configure_view(strokeWidth=0).configure_axis(**CHART_AXIS_KW)
+    )
+
+
+def village_bar_chart(villages: list, value_key: str, title: str, color: str, fmt: str = ",.0f") -> alt.Chart:
+    """One metric (population or area) per village, ranked -- a plain
+    identity axis (the village name) with one accent colour, since there's
+    no shared legend across this and a second village chart to keep
+    consistent."""
+    df = pd.DataFrame({
+        "village": [v["name"] for v in villages],
+        "value": [v.get(value_key) or 0 for v in villages],
+    }).sort_values("value", ascending=True)
+    chart = alt.Chart(df).mark_bar(color=color, cornerRadiusEnd=3, height=16).encode(
+        x=alt.X("value:Q", title=title),
+        y=alt.Y("village:N", title=None, sort=None),
+        tooltip=[alt.Tooltip("village:N", title=t("Village", "Kern")), alt.Tooltip("value:Q", title=title, format=fmt)],
+    ).properties(height=22 * len(df) + 20)
+    return chart.configure_view(strokeWidth=0).configure_axis(**CHART_AXIS_KW)
+
+
 def rotation_transitions_chart(top_transitions: dict) -> alt.Chart:
     """Top crop-to-crop transitions across the matched 2020-2025 window --
     one categorical axis (each transition is its own identity, no shared
@@ -453,9 +560,10 @@ def flood_timeline_chart(flood_event: dict) -> alt.LayerChart:
     )
 
 
-tab_overview, tab_explorer, tab_land, tab_climate, tab_env, tab_water, tab_business = st.tabs([
+tab_overview, tab_explorer, tab_villages, tab_land, tab_climate, tab_env, tab_water, tab_business = st.tabs([
     "📋 " + t("Overview", "Overzicht"),
     "🧭 " + t("Field Explorer", "Perceelverkenner"),
+    "🏘️ " + t("Villages", "Kernen"),
     "🌾 " + t("Land & Crops", "Land & Gewassen"),
     "📈 " + t("Trends & Climate", "Trends & Klimaat"),
     "🏭 " + t("Environment & Energy", "Milieu & Energie"),
@@ -540,12 +648,16 @@ with tab_explorer:
         format_func=lambda k: FIELD_COLOR_MODES[k][0 if LANG == "en" else 1],
     )
 
+    if selected_village:
+        st.caption("📍 " + t(f"Showing **{selected_village}** only — change in the sidebar.",
+                              f"Alleen **{selected_village}** getoond — wijzig in de zijbalk."))
+
     map_col, detail_col = st.columns([5, 2])
     with map_col:
-        field_map = field_explorer_map(color_by=color_key, lang=LANG)
+        field_map = field_explorer_map(color_by=color_key, lang=LANG, village=selected_village)
         map_state = st_folium(
             field_map, width=None, height=720,
-            returned_objects=["last_object_clicked"], key=f"field_map_{color_key}_{LANG}",
+            returned_objects=["last_object_clicked"], key=f"field_map_{color_key}_{LANG}_{selected_village}",
         )
 
     with detail_col:
@@ -654,6 +766,68 @@ with tab_explorer:
         "rood→groen, laag→hoge vitaliteit. **NDVI-verandering**: bruin→groen, verbruining→vergroening "
         "sinds 2024. Percelen zonder geldige pixel in een van beide data (bewolkt) tonen grijs.",
     ))
+
+# ======================================================================
+with tab_villages:
+    st.subheader(t("13 places, one municipality", "13 plaatsen, één gemeente"))
+    st.caption(t(
+        "Berg en Dal is a 2015 merger of the former municipalities Groesbeek, Millingen aan de Rijn and "
+        "Ubbergen — it reads as 13 real villages day to day, not one blob. Real CBS district (\"wijk\") "
+        "boundaries and population/area, not estimated. Pick one in the sidebar to filter the Field "
+        "Explorer map to just that place.",
+        "Berg en Dal is een fusie uit 2015 van de voormalige gemeenten Groesbeek, Millingen aan de Rijn "
+        "en Ubbergen — het voelt dagelijks als 13 echte kernen, niet één geheel. Echte CBS-wijkgrenzen en "
+        "bevolking/oppervlakte, niet geschat. Kies er één in de zijbalk om de kaart in Perceelverkenner "
+        "tot die plaats te beperken.",
+    ))
+
+    if villages:
+        vc1, vc2, vc3 = st.columns(3)
+        vc1.metric(t("Villages", "Kernen"), f"{len(villages)}")
+        vc2.metric(t("Largest", "Grootste"), villages[0]["name"],
+                   delta=f"{villages[0]['population']:,} " + t("residents", "inwoners"), delta_color="off")
+        _smallest = min(villages, key=lambda v: v["population"] or 0)
+        vc3.metric(t("Smallest", "Kleinste"), _smallest["name"],
+                   delta=f"{_smallest['population']:,} " + t("residents", "inwoners"), delta_color="off")
+
+        vcol1, vcol2 = st.columns(2)
+        with vcol1:
+            st.markdown(f"**{t('Population', 'Inwoners')}**")
+            st.altair_chart(village_bar_chart(villages, "population", t("Residents", "Inwoners"), COLOR_SENTINEL2), use_container_width=True)
+        with vcol2:
+            st.markdown(f"**{t('Land area', 'Landoppervlakte')}**")
+            st.altair_chart(village_bar_chart(villages, "land_area_ha", "ha", COLOR_TEMP), use_container_width=True)
+
+        st.markdown(f"**{t('All 13, in detail', 'Alle 13, in detail')}**")
+        _v_df = pd.DataFrame(villages).rename(columns={
+            "name": t("Village", "Kern"), "population": t("Residents", "Inwoners"),
+            "households": t("Households", "Huishoudens"), "land_area_ha": t("Land area (ha)", "Landoppervlakte (ha)"),
+            "density_per_km2": t("Density (res./km²)", "Dichtheid (inw./km²)"),
+        })
+        st.dataframe(_v_df, use_container_width=True, hide_index=True)
+
+    if cbs_trend.get("years"):
+        st.divider()
+        st.markdown(f"**{t('Municipality-wide growth, 2018–2024', 'Groei gemeentebreed, 2018–2024')}**")
+        _cy0, _cy1 = cbs_trend["years"][0], cbs_trend["years"][-1]
+        _pop0, _pop1 = cbs_trend["population"][0], cbs_trend["population"][-1]
+        _stock0, _stock1 = cbs_trend["housing_stock"][0], cbs_trend["housing_stock"][-1]
+        gc1, gc2 = st.columns(2)
+        if _pop0 and _pop1:
+            gc1.metric(t("Population", "Inwoners"), f"{_pop1:,}", delta=f"{_pop1 - _pop0:+,} ({_cy0}→{_cy1})")
+        if _stock0 and _stock1:
+            gc2.metric(t("Housing stock", "Woningvoorraad"), f"{_stock1:,}", delta=f"{_stock1 - _stock0:+,} homes ({_cy0}→{_cy1})" if LANG == "en" else f"{_stock1 - _stock0:+,} woningen ({_cy0}→{_cy1})")
+        st.caption(t(
+            "Real CBS registry counts, not modelled — this is the actual 'how much did housing grow' "
+            "answer for the whole municipality; the per-village population/area above is this same "
+            "source at finer geography, current-year only (CBS doesn't publish the district-level "
+            "breakdown for every past year the way it does the municipality total).",
+            "Echte CBS-registratieaantallen, niet gemodelleerd — dit is het daadwerkelijke antwoord op "
+            "'hoeveel is de woningvoorraad gegroeid' voor de hele gemeente; de bevolking/oppervlakte per "
+            "kern hierboven komt uit dezelfde bron op fijnere geografie, alleen voor het huidige jaar "
+            "(CBS publiceert de wijkuitsplitsing niet voor elk voorbij jaar zoals wel bij het "
+            "gemeentetotaal).",
+        ))
 
 # ======================================================================
 with tab_land:
@@ -768,6 +942,79 @@ with tab_land:
             "een veel groter perceel uit 2020 is die schemawijziging die zichtbaar wordt, geen echte "
             "gebeurtenis.",
         ))
+
+    if soil.get("properties"):
+        st.divider()
+        st.subheader(t("Soil: what's actually under the farmland", "Bodem: wat er daadwerkelijk onder het landbouwland zit"))
+        _sp = soil["properties"]
+        st.caption(t(
+            f"Sampled at {soil.get('n_points_sampled', 0)} real BRP-parcel centroids ({soil.get('n_points_sampled', 0) - soil.get('n_points_null', 0)} landed on mapped ground; the rest fell on open water/no-coverage and were dropped), "
+            "topsoil (0-5cm), from ISRIC SoilGrids — a global 250m model built from real profile "
+            "observations plus environmental covariates, not a Dutch source: PDOK/BRO's own soil map "
+            "(Bodemkaart) has no discoverable public WFS/WMS under any endpoint pattern this pipeline's "
+            "other PDOK services use (checked directly), and its province-level alternatives (Utrecht, "
+            "Zeeland, Zuid-Holland) don't cover Gelderland. A real methodology substitution, not a silent one.",
+            f"Bemonsterd op {soil.get('n_points_sampled', 0)} echte BRP-perceelcentroïden ({soil.get('n_points_sampled', 0) - soil.get('n_points_null', 0)} kwamen op gekarteerde grond terecht; de rest viel op open water/geen dekking en is weggelaten), "
+            "bovengrond (0-5cm), van ISRIC SoilGrids — een wereldwijd 250m-model op basis van echte "
+            "profielwaarnemingen plus omgevingsvariabelen, geen Nederlandse bron: de eigen bodemkaart van "
+            "PDOK/BRO heeft geen vindbare publieke WFS/WMS onder enig endpoint-patroon dat de andere "
+            "PDOK-diensten van deze pipeline gebruiken (rechtstreeks gecontroleerd), en de "
+            "provincie-alternatieven (Utrecht, Zeeland, Zuid-Holland) dekken Gelderland niet. Een echte "
+            "methodologische vervanging, geen stille.",
+        ))
+
+        sc1, sc2, sc3, sc4 = st.columns(4)
+        soc_val = _sp.get("soc", {}).get("mean")
+        sc1.metric(t("Organic carbon", "Organische koolstof"), f"{soc_val:.0f} g/kg" if soc_val else "n/a",
+                   delta=(f"≈{soc_val * 1.724 / 10:.1f}% " + t("organic matter", "organische stof")) if soc_val else None,
+                   delta_color="off")
+        ph_val = _sp.get("phh2o", {}).get("mean")
+        sc2.metric(t("pH (water)", "pH (water)"), f"{ph_val:.1f}" if ph_val else "n/a")
+        n_val = _sp.get("nitrogen", {}).get("mean")
+        sc3.metric(t("Total nitrogen", "Totaal stikstof"), f"{n_val:.1f} g/kg" if n_val else "n/a")
+        cec_val = _sp.get("cec", {}).get("mean")
+        sc4.metric(t("Cation exchange (CEC)", "Kationuitwisseling (CEC)"), f"{cec_val:.0f} cmol(c)/kg" if cec_val else "n/a")
+
+        tc1, tc2, tc3, tc4 = st.columns(4)
+        clay_val, sand_val, silt_val = _sp.get("clay", {}).get("mean"), _sp.get("sand", {}).get("mean"), _sp.get("silt", {}).get("mean")
+        tc1.metric(t("Clay", "Klei"), f"{clay_val:.0f}%" if clay_val else "n/a")
+        tc2.metric(t("Sand", "Zand"), f"{sand_val:.0f}%" if sand_val else "n/a")
+        tc3.metric(t("Silt", "Silt"), f"{silt_val:.0f}%" if silt_val else "n/a")
+        bd_val = _sp.get("bdod", {}).get("mean")
+        tc4.metric(t("Bulk density", "Bulkdichtheid"), f"{bd_val:.2f} kg/dm³" if bd_val else "n/a")
+
+        if all(v is not None for v in (soc_val, ph_val, cec_val, bd_val, clay_val, sand_val, silt_val)):
+            om_pct = soc_val * 1.724 / 10
+            st.info(t(
+                "**A generally favourable picture, read as a first-pass indicator, not a certified soil "
+                f"test:** organic matter (≈{om_pct:.0f}%) is high for Dutch mineral farmland, consistent "
+                "with the grassland-heavy land use this dashboard's own BRP data shows (pasture builds "
+                "organic matter faster than continuous arable) — high organic matter and the low bulk "
+                f"density ({bd_val:.2f} kg/dm³) reading agree with each other, since dense soil and high "
+                "organic matter rarely coincide. CEC in the moderate-high range means decent "
+                f"nutrient-holding capacity. pH ({ph_val:.1f}) sits slightly acidic — fine for grass, on "
+                "the low side for some arable crops, a real reason a farmer might lime specific fields. "
+                f"Texture (clay {clay_val:.0f}% / sand {sand_val:.0f}% / silt {silt_val:.0f}%) reads as "
+                "loam/silt loam — workable, holds both water and nutrients reasonably, neither the "
+                "heavy-clay nor droughty-sand extreme. **What this can't tell you:** SoilGrids is a 250m "
+                "model, not a field sample — real soil varies within that footprint, and an actual soil "
+                "test is what any real agronomic decision should be based on, not this.",
+                "**Een over het algemeen gunstig beeld, te lezen als eerste indicatie, geen gecertificeerde "
+                f"bodemtest:** het organische-stofgehalte (≈{om_pct:.0f}%) is hoog voor Nederlandse "
+                "minerale landbouwgrond, consistent met het grasland-zware landgebruik dat de eigen "
+                "BRP-data van dit dashboard laat zien (weiland bouwt sneller organische stof op dan "
+                f"continu bouwland) — hoog organische stof en de lage bulkdichtheid ({bd_val:.2f} kg/dm³) "
+                "passen bij elkaar, want dichte grond en hoog organische stof gaan zelden samen. CEC in "
+                f"het matig-hoge bereik betekent een redelijk vermogen om voedingsstoffen vast te houden. "
+                f"De pH ({ph_val:.1f}) is licht zuur — prima voor gras, aan de lage kant voor sommige "
+                "bouwlandgewassen, een reële reden om bepaalde percelen te bekalken. De textuur "
+                f"(klei {clay_val:.0f}% / zand {sand_val:.0f}% / silt {silt_val:.0f}%) leest als leem/"
+                "siltige leem — bewerkbaar, houdt zowel water als voedingsstoffen redelijk vast, geen van "
+                "beide uitersten van zware klei of droogtegevoelig zand. **Wat dit niet kan vertellen:** "
+                "SoilGrids is een 250m-model, geen veldmonster — echte bodem varieert binnen die "
+                "voetafdruk, en een echte bodemtest is waar elke echte agronomische beslissing op hoort "
+                "te steunen, niet dit.",
+            ), icon="🌱")
 
     st.subheader(t("Forest & nature", "Bos & natuur"))
     nature_brp = cat_ha.get("Natuurterrein", 0)
@@ -898,6 +1145,52 @@ with tab_climate:
                 "begroeide grond, niet letterlijk \"meer water.\"",
             ))
 
+    if landcover_trend.get("years"):
+        st.divider()
+        _lc_y0, _lc_y1 = landcover_trend["years"][0], landcover_trend["years"][-1]
+        st.markdown("#### " + t(f"Land cover area, {_lc_y0}–{_lc_y1}", f"Landgebruikoppervlak, {_lc_y0}–{_lc_y1}"))
+        st.caption(t(
+            "Built-up, forest, farmland and water, as real hectares — not this year's snapshot. Compared "
+            "only within the footprint valid in *every* year (cloud coverage differs by year, so a raw "
+            "per-year hectare count would confuse 'more cloud-free ground' with 'more of this category'); "
+            "still, read the *shape* across years, not one year-to-year jump, as the finding — an "
+            "unsupervised classifier re-run independently each year has real year-to-year label wobble, "
+            "especially between 'Built-up/bare' and 'Agriculture' (bare/just-harvested cropland can look "
+            "spectrally similar to hard surfaces in a single snapshot).",
+            "Bebouwd, bos, landbouw en water, als echte hectares — niet de momentopname van dit jaar. "
+            "Alleen vergeleken binnen het gebied dat in *elk* jaar geldig is (bewolking verschilt per "
+            "jaar, dus een ruwe hectaretelling per jaar zou 'meer onbewolkte grond' verwarren met 'meer "
+            "van deze categorie'); lees toch de *vorm* over de jaren, niet één sprong van jaar op jaar, "
+            "als de bevinding — een ongestuurde classifier die elk jaar apart draait heeft echte "
+            "jaar-op-jaar labelruis, vooral tussen 'Bebouwd/kaal' en 'Landbouw' (kale of net geoogste "
+            "akkers kunnen spectraal op verharding lijken in één opname).",
+        ))
+        _lc_cols = st.columns(4)
+        for _lc_col, (_cat, _vals) in zip(_lc_cols, landcover_trend["series_ha"].items()):
+            with _lc_col:
+                _chg = landcover_trend.get("change", {}).get(_cat, {})
+                st.markdown(f"**{_cat}**")
+                st.altair_chart(landcover_trend_chart(landcover_trend["years"], _vals, _cat), use_container_width=True)
+                st.caption(f"{_chg.get('net_ha', 0):+,.0f} ha ({_chg.get('net_pct', 0):+.1f}%)")
+        st.caption(t(
+            "Built-up reads as a net decrease here despite the municipality's own new-homes figures "
+            "elsewhere in this dashboard (CBS: real, positive housing growth) — 2018, this series' first "
+            "year, was also the documented 2018 drought (see above): exceptionally bare, stressed ground "
+            "that August plausibly over-counted into 'Built-up/bare' that specific year, inflating the "
+            "starting point rather than construction ever having reversed. Forest and water are the more "
+            "spectrally stable categories and worth more confidence; built-up specifically should be read "
+            "as directional, not a precise hectare count, until cross-checked against BAG (the building "
+            "registry) — a real next step, not done here.",
+            "Bebouwd oogt hier als een netto afname ondanks de eigen nieuwbouwcijfers van de gemeente "
+            "elders op dit dashboard (CBS: echte, positieve woningbouwgroei) — 2018, het eerste jaar van "
+            "deze reeks, was ook de gedocumenteerde droogte van 2018 (zie hierboven): die augustus "
+            "uitzonderlijk kale, gestreste grond telde plausibel mee als 'Bebouwd/kaal' dat specifieke "
+            "jaar, wat het startpunt opblaast in plaats van dat bouwactiviteit ooit is teruggedraaid. Bos "
+            "en water zijn de spectraal stabielere categorieën en verdienen meer vertrouwen; bebouwd "
+            "moet specifiek gelezen worden als richting, geen precieze hectaretelling, tot het getoetst "
+            "is aan de BAG (het gebouwenregister) — een echte vervolgstap, hier nog niet gedaan.",
+        ))
+
     if weather.get("august", {}).get("years"):
         st.divider()
         st.markdown("#### " + t(
@@ -1010,6 +1303,54 @@ with tab_env:
         "worden gebruikt), uitgesneden op de gemeentegrens — geen ruwe satellietpixels, maar de "
         "gezaghebbende referentie waaraan elk satellietgebaseerd luchtproduct gevalideerd zou worden.",
     ))
+
+    if air_quality_trend.get("series", {}).get("NO2", {}).get("years"):
+        st.markdown("#### " + t("12-year trend, 2013–2024", "12-jarige trend, 2013–2024"))
+        st.caption(t(
+            "Same RIVM service, every year it actually publishes (checked directly against its own "
+            "capabilities list). EC (elemental carbon / soot) is included as the closest real combustion "
+            "proxy this free service has — not a CO₂ or GHG number itself, see the note below.",
+            "Dezelfde RIVM-dienst, elk jaar dat hij daadwerkelijk publiceert (rechtstreeks gecontroleerd "
+            "tegen de eigen capabilities-lijst). EC (elementair koolstof / roet) is opgenomen als de "
+            "dichtstbijzijnde echte verbrandingsproxy die deze gratis dienst heeft — geen CO₂- of "
+            "broeikasgascijfer zelf, zie de kanttekening hieronder.",
+        ))
+        _aq_colors = {"NO2": "#eb6834", "PM10": "#eda100", "PM25": "#2a78d6", "EC": "#51604F"}
+        _aq_cols = st.columns(4)
+        for _aq_col, (_pol, _s) in zip(_aq_cols, air_quality_trend["series"].items()):
+            if not _s.get("years"):
+                continue
+            with _aq_col:
+                st.markdown(f"**{_pol.replace('PM25','PM₂.₅').replace('PM10','PM₁₀').replace('NO2','NO₂')}**")
+                st.altair_chart(
+                    air_quality_trend_chart(_s["years"], _s["mean_ug_m3"], _pol, _aq_colors.get(_pol, "#51604F")),
+                    use_container_width=True,
+                )
+                net = _s["mean_ug_m3"][-1] - _s["mean_ug_m3"][0]
+                st.caption(f"{net:+.1f} µg/m³ ({_s['years'][0]}→{_s['years'][-1]})")
+        st.caption(t(
+            "All four fell over this period — real, documented Dutch/EU air-quality improvement (cleaner "
+            "vehicles, stricter emission standards), not a pipeline artifact. The 2020 dip (ringed) is the "
+            "documented COVID-19 lockdown traffic drop, not noise — it recovers most of the way in 2021, "
+            "consistent with traffic (not industry) driving it. **What this still can't show:** CO₂/GHG "
+            "and NH₃/nitrogen deposition, the two figures Dutch climate and farm-nitrogen policy actually "
+            "runs on. Both checked directly, not assumed absent: municipal CO₂ (Klimaatmonitor) sits "
+            "behind an authenticated OData API (confirmed: HTTP 401 \"Guest user group not found\"); "
+            "NH₃/deposition (RIVM's GDN/AERIUS) has no public WCS/WFS at all under any of the endpoint "
+            "patterns this pipeline's other RIVM/PDOK services use. Real gaps, not silent omissions.",
+            "Alle vier daalden in deze periode — een echte, gedocumenteerde Nederlandse/Europese "
+            "luchtkwaliteitsverbetering (schonere voertuigen, strengere emissie-eisen), geen "
+            "pipeline-artefact. De dip van 2020 (omcirkeld) is de gedocumenteerde COVID-19-"
+            "lockdownverkeersdaling, geen ruis — herstelt grotendeels in 2021, consistent met verkeer "
+            "(niet industrie) als aandrijver. **Wat dit nog steeds niet kan laten zien:** CO₂/"
+            "broeikasgassen en NH₃/stikstofdepositie, de twee cijfers waar Nederlands klimaat- en "
+            "stikstofbeleid voor de landbouw daadwerkelijk op draait. Beide rechtstreeks gecontroleerd, "
+            "niet aangenomen als afwezig: gemeentelijke CO₂ (Klimaatmonitor) zit achter een "
+            "geauthenticeerde OData-API (bevestigd: HTTP 401 \"Guest user group not found\"); "
+            "NH₃/depositie (RIVM's GDN/AERIUS) heeft helemaal geen publieke WCS/WFS onder welk "
+            "endpoint-patroon dan ook dat de andere RIVM/PDOK-diensten van deze pipeline gebruiken. "
+            "Echte hiaten, geen stille omissies.",
+        ))
 
     st.warning(t(
         "**NH₃ / nitrogen deposition — not available here, and that's the actual gap worth closing.** "

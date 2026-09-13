@@ -62,7 +62,15 @@ def _fetch_one(pollutant: str, coverage_id: str, who_guideline: float) -> dict:
         dst.write(clipped)
     raw_path.unlink()
 
-    valid = clipped[0][clipped[0] != profile["nodata"]]
+    # A real bug found in fetch_air_quality_trend.py's older-year coverages
+    # (checked directly): some declare nodata=0.0 but actually fill nodata
+    # pixels with float32's most-negative value (-3.4e38), which corrupts a
+    # mean computed by excluding only the *declared* nodata. A physical
+    # sanity bound (no real concentration is negative or above 1000 ug/m3)
+    # guards this coverage the same way regardless of which sentinel it
+    # turns out to actually use.
+    band = clipped[0]
+    valid = band[(band != profile["nodata"]) & (band > -1000) & (band < 1000)]
     result = {
         "mean_ug_m3": round(float(valid.mean()), 1),
         "min_ug_m3": round(float(valid.min()), 1),

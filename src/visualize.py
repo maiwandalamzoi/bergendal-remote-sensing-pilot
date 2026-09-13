@@ -276,7 +276,8 @@ def _hex_from_cmap(value, vmin, vmax, cmap_name):
     return f"#{int(r*255):02x}{int(g*255):02x}{int(b*255):02x}"
 
 
-def field_explorer_map(color_by: str = "category", center: list | None = None, lang: str = "en"):
+def field_explorer_map(color_by: str = "category", center: list | None = None, lang: str = "en",
+                        village: str | None = None):
     """One clickable field per BRP parcel, recoloured by whichever attribute
     the dashboard's selector is set to -- category, crop, or either date's
     NDVI. Built fresh per selection (cheap: ~3,700 features, simplified
@@ -287,10 +288,23 @@ def field_explorer_map(color_by: str = "category", center: list | None = None, l
     Geometry is simplified for *display only* -- the precise polygons (and
     their exact zonal-stat NDVI values) stay in data/raw/brp_parcels.geojson
     untouched; this only thins the copy that gets drawn.
+
+    `village`, when given a name from data/raw/villages.geojson (CBS's own
+    "wijken"), clips the fields shown to that village's real administrative
+    boundary rather than a hand-drawn radius.
     """
     import geopandas as gpd
 
     gdf = gpd.read_file(RAW_DIR / "brp_parcels.geojson")
+    village_geom = None
+    if village:
+        villages_path = RAW_DIR / "villages.geojson"
+        if villages_path.exists():
+            villages = gpd.read_file(villages_path)
+            match = villages[villages["wijknaam"] == village]
+            if len(match):
+                village_geom = match.geometry.iloc[0]
+                gdf = gdf[gdf.geometry.centroid.within(village_geom)]
     gdf_rd = gdf.to_crs(28992)
     gdf_rd["geometry"] = gdf_rd.geometry.simplify(4, preserve_topology=True)
 
@@ -343,7 +357,7 @@ def field_explorer_map(color_by: str = "category", center: list | None = None, l
     # never reach the embedded JSON at all.
     gdf = gdf[["geometry", "_crop_display", "category", "_area_txt", "_ndvi25_txt", "_ndvi_chg_txt", "_color"]]
 
-    m = folium.Map(location=center, zoom_start=13, tiles="OpenStreetMap",
+    m = folium.Map(location=center, zoom_start=14 if village else 13, tiles="OpenStreetMap",
                     control_scale=True, prefer_canvas=True)
 
     i = 0 if lang == "en" else 1
