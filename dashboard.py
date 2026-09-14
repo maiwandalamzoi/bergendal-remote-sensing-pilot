@@ -44,6 +44,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 from statsutil import load_stats
 from visualize import (make_map, field_explorer_map, FIELD_COLOR_MODES, CROP_FAMILIES, classify_crop,
                         LANDCOVER_COLORS, landcover_label, landcover_icon_svg)
+from report import build_report_pdf, REPORT_LAYER_CHOICES
 from crop_rotation import normalize_crop
 from methodology import ENTRIES as METHOD_ENTRIES
 
@@ -456,11 +457,39 @@ with st.sidebar:
     if st.button("🖨️ " + t("Print this tab", "Print dit tabblad"), use_container_width=True):
         st.components.v1.html("<script>window.parent.print();</script>", height=0)
     st.caption(t(
-        "Opens your browser's print dialog for whichever tab is open — 'Save as PDF' there makes it a "
-        "report. The sidebar and toolbar are hidden automatically on print.",
-        "Opent het afdrukdialoogvenster van je browser voor het geopende tabblad — 'Opslaan als PDF' "
-        "daar maakt er een rapport van. De zijbalk en werkbalk worden automatisch verborgen bij afdrukken.",
+        "Opens your browser's print dialog for whichever tab is open — a quick snapshot, but it can't "
+        "pick layers or bake in a real legend/scale bar. For that, build a PDF report below.",
+        "Opent het afdrukdialoogvenster van je browser voor het geopende tabblad — een snelle "
+        "momentopname, maar zonder gekozen lagen of een echte legenda/schaalbalk. Bouw daarvoor "
+        "hieronder een PDF-rapport.",
     ))
+    with st.expander("📄 " + t("Build a PDF report", "Bouw een PDF-rapport")):
+        st.caption(t(
+            "Pick which real layers to include — each becomes its own page with a title, legend, north "
+            "arrow, and a scale bar sized to that page's own real extent (the same idea as a QGIS/ArcGIS "
+            "print composer), not a screenshot of the interactive map.",
+            "Kies welke echte lagen erin komen — elke laag wordt een eigen pagina met titel, legenda, "
+            "noordpijl en een schaalbalk op maat van die pagina's eigen echte oppervlak (hetzelfde idee "
+            "als een QGIS/ArcGIS-afdrukcompositie), geen schermafbeelding van de interactieve kaart.",
+        ))
+        _report_selected = [key for key, label in REPORT_LAYER_CHOICES
+                             if st.checkbox(label[0] if LANG == "en" else label[1], value=(key in ("true_color", "ndvi", "landcover")),
+                                             key=f"report_layer_{key}")]
+        if st.button(t("Generate PDF", "Genereer PDF"), use_container_width=True, disabled=not _report_selected):
+            with st.spinner(t("Building report…", "Rapport wordt gebouwd…")):
+                try:
+                    _pdf_bytes = build_report_pdf(_report_selected, lang=LANG)
+                    st.session_state["_report_pdf"] = _pdf_bytes
+                except Exception as exc:
+                    st.error(t(f"Report generation failed: {exc}", f"Rapport genereren mislukt: {exc}"))
+        if st.session_state.get("_report_pdf"):
+            st.download_button(
+                "⬇️ " + t("Download report PDF", "Download rapport-PDF"),
+                data=st.session_state["_report_pdf"],
+                file_name=f"bergendal_rapport_{datetime.date.today().isoformat()}.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+            )
     st.divider()
     st.caption(t(
         "Data: Sentinel-1/2, Landsat, AHN LiDAR, KNMI, RIVM, CBS, BRP, ISRIC SoilGrids. See README.md.",

@@ -862,3 +862,33 @@ the current (real, non-black-box) OLS trend and Markov rotation models —
 a per-field NDVI-anomaly early-stress detector and a land-cover
 classifier trained on this pipeline's own multi-year KMeans output plus
 BRP labels, neither built yet.
+
+### A real print/export report (`src/report.py`)
+
+The sidebar's "Print this tab" button only ever triggered the browser's
+own print dialog on whatever tab happened to be open -- no choice of
+what's on the page, and no real legend/scale bar baked in reliably
+across browsers. `src/report.py` builds an actual multi-page PDF
+instead, in the same spirit as a QGIS/ArcGIS print composer: a sidebar
+checklist (`REPORT_LAYER_CHOICES`) lets a person pick which real layers
+to include (true colour, NDVI, NDVI change, land cover, SAR, SAR water
+mask, flood extent, elevation, canopy height, NO2, BRP fields), and
+`build_report_pdf()` renders one page per layer -- the real raster
+(reusing the exact PNG-generation functions `make_map()` already uses
+for the live map, not a fresh render path that could drift from what
+the map actually shows), a title/subtitle block, a legend that matches
+what's actually on the page (coloured swatches for categorical layers
+like land cover/crops, a real colour-ramp bar with the *actual*
+min/max the PNG was stretched to for continuous ones like NDVI/SAR),
+a north arrow, and a scale bar computed from that page's own real
+geographic extent (1° longitude ≈ 111.32·cos(latitude) km at this
+municipality's latitude, not a fixed bar reused regardless of zoom).
+Returned as bytes straight into `st.download_button` -- no temp file
+left on disk. Two real bugs caught by actually rendering the PDF and
+looking at it, not just running the code: the categorical legend's
+"square" swatches rendered as tall thin bars (an axes-fraction
+Rectangle sized without accounting for that column's own aspect
+ratio -- fixed by switching to a fixed-size marker instead), and the
+cover page's table of contents could overlap its own footer when many
+layers were selected (a fixed per-line step regardless of item count --
+fixed by computing the step from how many lines actually need to fit).
