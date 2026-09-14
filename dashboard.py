@@ -226,12 +226,40 @@ def kpi_card(label: str, period: str, value: str, unit: str, context: str, visua
 def load_brp_gdf():
     """The precise (unsimplified) parcel geometry + exact zonal-stat NDVI --
     used for the click-to-inspect lookup, kept separate from the
-    display-simplified copy field_explorer_map() draws."""
-    return gpd.read_file(BRP_PATH)
+    display-simplified copy field_explorer_map() draws.
+
+    Returns None, not a raised exception, when BRP_PATH isn't present --
+    a deploy that only has the small committed stats.json (see
+    .gitignore) doesn't have this file. Every caller below checks for
+    None and degrades that one section instead of crashing the whole
+    page; centralizing the try/except here, once, replaced a real bug
+    where three separate call sites each needed their own guard and one
+    (the Land & Crops crop-family chart) didn't have one yet, confirmed
+    live on Streamlit Community Cloud."""
+    try:
+        return gpd.read_file(BRP_PATH)
+    except Exception:
+        return None
+
+
+def _needs_brp_geometry(section: str) -> None:
+    """The one message every load_brp_gdf()-is-None call site shows --
+    centralized so the wording (and the fix instructions) can't drift
+    between the map tabs, the crop-family chart, and the Forecast tab's
+    rotation summary, all of which read the same missing file."""
+    st.info(t(
+        f"{section} needs the full BRP parcel archive, which this deployment doesn't have (only the "
+        f"small `stats.json` summary is included here) — run `python run_pipeline.py` locally for this.",
+        f"{section} heeft het volledige BRP-perceelarchief nodig, dat deze deployment niet heeft (alleen "
+        f"de kleine `stats.json`-samenvatting is hier meegenomen) — draai `python run_pipeline.py` lokaal "
+        f"hiervoor.",
+    ))
 
 
 def field_at(lat: float, lon: float):
     gdf = load_brp_gdf()
+    if gdf is None:
+        return None
     point = Point(lon, lat)
     hit = gdf[gdf.contains(point)]
     return hit.iloc[0] if len(hit) else None
@@ -1536,7 +1564,11 @@ with tab_land:
         "icoonlegenda per perceel), zodat de bouwland/grasland-mix hierboven verder wordt uitgesplitst dan "
         "'top 9 gewassen, de rest samen' zonder dat er 102 losse kleuren nodig zijn.",
     ))
-    st.altair_chart(crop_family_chart(load_brp_gdf()), use_container_width=True)
+    _brp_gdf = load_brp_gdf()
+    if _brp_gdf is not None:
+        st.altair_chart(crop_family_chart(_brp_gdf), use_container_width=True)
+    else:
+        _needs_brp_geometry(t("This chart", "Deze grafiek"))
 
     st.info(t(
         "**A dairy-and-arable mix, not a monoculture:** permanent grassland (1,417 ha) and silage maize "
@@ -2227,20 +2259,24 @@ with tab_forecast:
                 "verwachtingswaarde — de oppervlakte per perceel verdeeld over de families van volgend "
                 "jaar volgens de eigen waargenomen kansen van die familie, geen harde keuze per perceel.",
             ))
-            _fam_series = load_brp_gdf().apply(lambda r: classify_crop(r["gewas"], r["category"]), axis=1)
-            _current_family_ha = load_brp_gdf().groupby(_fam_series)["area_ha"].sum().round(1).to_dict()
-            st.altair_chart(
-                crop_family_forecast_chart(_current_family_ha, cr["projected_area_ha_next_year"]),
-                use_container_width=True,
-            )
-            st.info(t(
-                "**See it on the map, per field:** switch Field Explorer's \"Colour fields by\" to "
-                "**Predicted next crop (ML)** — each field is coloured by its own most likely next-year "
-                "family, with the predicted probability in its tooltip.",
-                "**Bekijk het op de kaart, per perceel:** zet \"Percelen kleuren op\" in Perceelverkenner op "
-                "**Voorspeld volgend gewas (ML)** — elk perceel is gekleurd naar de eigen meest "
-                "waarschijnlijke gewasfamilie van volgend jaar, met de voorspelde kans in de tooltip.",
-            ))
+            _rot_brp_gdf = load_brp_gdf()
+            if _rot_brp_gdf is not None:
+                _fam_series = _rot_brp_gdf.apply(lambda r: classify_crop(r["gewas"], r["category"]), axis=1)
+                _current_family_ha = _rot_brp_gdf.groupby(_fam_series)["area_ha"].sum().round(1).to_dict()
+                st.altair_chart(
+                    crop_family_forecast_chart(_current_family_ha, cr["projected_area_ha_next_year"]),
+                    use_container_width=True,
+                )
+                st.info(t(
+                    "**See it on the map, per field:** switch Field Explorer's \"Colour fields by\" to "
+                    "**Predicted next crop (ML)** — each field is coloured by its own most likely next-year "
+                    "family, with the predicted probability in its tooltip.",
+                    "**Bekijk het op de kaart, per perceel:** zet \"Percelen kleuren op\" in Perceelverkenner op "
+                    "**Voorspeld volgend gewas (ML)** — elk perceel is gekleurd naar de eigen meest "
+                    "waarschijnlijke gewasfamilie van volgend jaar, met de voorspelde kans in de tooltip.",
+                ))
+            else:
+                _needs_brp_geometry(t("This chart", "Deze grafiek"))
 
 # ======================================================================
 with tab_env:
