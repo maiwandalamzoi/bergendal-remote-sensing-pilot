@@ -482,6 +482,25 @@ this project's own wordmark (header, sidebar, browser favicon), and
 UI, not something this project added). Custom `icon=` overrides on those
 calls were removed for the same reason.
 
+### Grouped map layers: a flat 14-checkbox list, categorized
+
+The Overview map's own layer list grew to 13-15 items (true colour, NDVI,
+land cover, NDVI change, SAR backscatter/water mask, two flood-extent
+methods, elevation, canopy height, air quality, BRP fields, the forest
+change map, municipal/village boundaries) as more real analyses landed —
+all in one flat Leaflet checkbox list, genuinely hard to scan. Replaced
+with `folium.plugins.GroupedLayerControl` (the `leaflet-groupedlayercontrol`
+plugin), sorting every layer into six labelled groups — Optical &
+vegetation, Land cover & change, Radar (SAR), Elevation, Environment,
+Registry & boundaries — matching how a person actually thinks about "what
+kind of layer is this," not the order it happened to get built in.
+`exclusive_groups=False` keeps every group a checkbox list (several
+layers, within or across groups, can still be shown together at once,
+exactly like before) — only the layout changed, not the interaction.
+Field Explorer's own layer list (3-4 items: fields, village outline,
+municipal boundary) stays a plain `LayerControl` — short enough that
+grouping it would be overhead, not help.
+
 ## What it found (first pass)
 
 - Land cover, Aug 2025: ~77% dense vegetation (three brightness tiers —

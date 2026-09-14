@@ -12,7 +12,7 @@ import folium
 import numpy as np
 import pandas as pd
 import rasterio
-from folium.plugins import Fullscreen, MarkerCluster
+from folium.plugins import Fullscreen, GroupedLayerControl, MarkerCluster
 from matplotlib import colormaps
 from matplotlib.colors import Normalize, ListedColormap
 from PIL import Image
@@ -919,41 +919,71 @@ def make_map(label_new: str = "summer_2025", label_old: str = "summer_2024", lan
     ]
     names = [pair[i] for pair in layer_names]
 
-    folium.raster_layers.ImageOverlay(str(tc_path), bounds=bounds, name=names[0], opacity=1.0).add_to(m)
-    folium.raster_layers.ImageOverlay(str(ndvi_path), bounds=bounds, name=names[1], opacity=0.85, show=False).add_to(m)
-    folium.raster_layers.ImageOverlay(str(lc_path), bounds=bounds, name=names[2], opacity=0.8, show=False).add_to(m)
-    folium.raster_layers.ImageOverlay(str(chg_path), bounds=bounds, name=names[3], opacity=0.85, show=False).add_to(m)
-    folium.raster_layers.ImageOverlay(str(vv_path), bounds=vv_bounds, name=names[4], opacity=0.9, show=False).add_to(m)
-    folium.raster_layers.ImageOverlay(str(water_path), bounds=vv_bounds, name=names[5], opacity=0.75, show=False).add_to(m)
-    folium.raster_layers.ImageOverlay(str(flood_path), bounds=flood_bounds, name=names[6], opacity=0.85, show=False).add_to(m)
+    l_tc = folium.raster_layers.ImageOverlay(str(tc_path), bounds=bounds, name=names[0], opacity=1.0).add_to(m)
+    l_ndvi = folium.raster_layers.ImageOverlay(str(ndvi_path), bounds=bounds, name=names[1], opacity=0.85, show=False).add_to(m)
+    l_lc = folium.raster_layers.ImageOverlay(str(lc_path), bounds=bounds, name=names[2], opacity=0.8, show=False).add_to(m)
+    l_chg = folium.raster_layers.ImageOverlay(str(chg_path), bounds=bounds, name=names[3], opacity=0.85, show=False).add_to(m)
+    l_vv = folium.raster_layers.ImageOverlay(str(vv_path), bounds=vv_bounds, name=names[4], opacity=0.9, show=False).add_to(m)
+    l_water = folium.raster_layers.ImageOverlay(str(water_path), bounds=vv_bounds, name=names[5], opacity=0.75, show=False).add_to(m)
+    l_flood = folium.raster_layers.ImageOverlay(str(flood_path), bounds=flood_bounds, name=names[6], opacity=0.85, show=False).add_to(m)
+    l_flood_cd = None
     if flood_cd_path is not None:
-        folium.raster_layers.ImageOverlay(
+        l_flood_cd = folium.raster_layers.ImageOverlay(
             str(flood_cd_path), bounds=flood_cd_bounds, name=names[7], opacity=0.85, show=False
         ).add_to(m)
-    folium.raster_layers.ImageOverlay(str(elev_path), bounds=elev_bounds, name=names[8], opacity=0.85, show=False).add_to(m)
-    folium.raster_layers.ImageOverlay(str(ndsm_path), bounds=elev_bounds, name=names[9], opacity=0.85, show=False).add_to(m)
-    folium.raster_layers.ImageOverlay(str(no2_path), bounds=no2_bounds, name=names[10], opacity=0.75, show=False).add_to(m)
-    folium.raster_layers.ImageOverlay(str(brp_path), bounds=brp_bounds, name=names[11], opacity=0.8, show=False).add_to(m)
+    l_elev = folium.raster_layers.ImageOverlay(str(elev_path), bounds=elev_bounds, name=names[8], opacity=0.85, show=False).add_to(m)
+    l_ndsm = folium.raster_layers.ImageOverlay(str(ndsm_path), bounds=elev_bounds, name=names[9], opacity=0.85, show=False).add_to(m)
+    l_no2 = folium.raster_layers.ImageOverlay(str(no2_path), bounds=no2_bounds, name=names[10], opacity=0.75, show=False).add_to(m)
+    l_brp = folium.raster_layers.ImageOverlay(str(brp_path), bounds=brp_bounds, name=names[11], opacity=0.8, show=False).add_to(m)
+    l_lcc = None
     if lcc_path is not None:
         lcc_name = (f"Forest & land cover change, {lcc_first}→{lcc_last}",
                     f"Bos & landgebruikverandering, {lcc_first}→{lcc_last}")[i]
-        folium.raster_layers.ImageOverlay(
+        l_lcc = folium.raster_layers.ImageOverlay(
             str(lcc_path), bounds=lcc_bounds, name=lcc_name, opacity=0.9, show=False
         ).add_to(m)
 
-    folium.GeoJson(
+    l_muni = folium.GeoJson(
         geometry_wgs84().__geo_interface__,
         name=names[12],
         style_function=lambda x: {"fillOpacity": 0, "color": "#16221C", "weight": 2},
     ).add_to(m)
 
+    l_village = None
     if village_geom_wgs84 is not None:
         village_layer_name = f"📍 {village}" if lang == "en" else f"📍 {village}"
-        folium.GeoJson(
+        l_village = folium.GeoJson(
             village_geom_wgs84.__geo_interface__,
             name=village_layer_name,
             style_function=lambda x: {"fillColor": "#4a3aa7", "fillOpacity": 0.08, "color": "#4a3aa7", "weight": 3},
         ).add_to(m)
+
+    # Grouped, collapsible layer control (leaflet-groupedlayercontrol) --
+    # a flat 14-15-checkbox list ("all of NDVI/land cover/SAR/forest
+    # change/field boundaries on screen at once") is genuinely hard to
+    # scan; grouping by what kind of data each layer actually is (optical,
+    # land cover, radar, elevation, environment, registry) is the standard
+    # GIS-software fix, not a cosmetic one. exclusive_groups=False keeps
+    # every group a checkbox list (multiple layers within or across
+    # groups can still be shown together), matching the plain
+    # LayerControl's existing behaviour exactly -- only the layout changes.
+    group_titles = {
+        "optical": ("Optical & vegetation", "Optisch & vegetatie"),
+        "landcover": ("Land cover & change", "Landgebruik & verandering"),
+        "sar": ("Radar (SAR)", "Radar (SAR)"),
+        "elevation": ("Elevation", "Hoogte"),
+        "environment": ("Environment", "Milieu"),
+        "registry": ("Registry & boundaries", "Registratie & grenzen"),
+    }
+    groups = {
+        group_titles["optical"][i]: [l_tc, l_ndvi, l_chg],
+        group_titles["landcover"][i]: [l_lc] + ([l_lcc] if l_lcc is not None else []),
+        group_titles["sar"][i]: [l_vv, l_water, l_flood] + ([l_flood_cd] if l_flood_cd is not None else []),
+        group_titles["elevation"][i]: [l_elev, l_ndsm],
+        group_titles["environment"][i]: [l_no2],
+        group_titles["registry"][i]: [l_brp, l_muni] + ([l_village] if l_village is not None else []),
+    }
+    GroupedLayerControl(groups=groups, exclusive_groups=False, collapsed=False).add_to(m)
 
     legend_rows = "".join(
         f'<div style="display:flex;align-items:center;gap:6px;margin:2px 0;">'
@@ -1090,7 +1120,9 @@ def make_map(label_new: str = "summer_2025", label_old: str = "summer_2024", lan
     m.get_root().html.add_child(_report_header_element(lang, village))
     m.get_root().html.add_child(_north_arrow_element())
 
-    folium.LayerControl(collapsed=False).add_to(m)
+    # GroupedLayerControl (added earlier, right after the layers
+    # themselves) replaces the plain LayerControl here -- see its own
+    # comment above for why.
     return m
 
 
