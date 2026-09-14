@@ -572,6 +572,72 @@ circle badge coloured to match that family's own map fill -- so the pin
 and the field it sits on always visually agree, and the icon itself
 reads as a real pictogram rather than an emoji.
 
+### Overview KPI cards: one consistent structure, real micro-visuals, real units
+
+The five Overview headline cards (`kpi_card()` in `dashboard.py`) were
+inconsistent -- two had a native `st.metric` sparkline, three didn't, so
+the row of "More" buttons beneath them sat at different heights, and
+"Land area 8,639" was missing its unit. Rebuilt as one shared structure
+(label, real period/year, big number **with unit**, a one-line real
+context fact, then a fixed-height visual slot) so every card renders the
+same height regardless of what it contains:
+
+- **Population, Households** get a real inline sparkline (`kpi_sparkline_svg()`,
+  plain hand-drawn SVG, no charting library) through their real
+  `cbs_trend.py` multi-year series, first and last value labelled
+  directly on the line -- the actual axis at this size, not decoration.
+- **Homes with solar** gets a proportion bar (`kpi_proportion_bar_svg()`) --
+  the honest micro-visual for one percentage with no time series behind it.
+- **Registered farmland** and **Land area** show *no* visual, on
+  purpose: neither has a real multi-year series in this pipeline (BRP
+  only has the current registry year; land area is structurally
+  constant) and a decorative line with nothing behind it would be the
+  thing this whole redesign was fixing.
+- Every card's data-ink colour is the header's own dark green
+  (`KPI_INK = "#2E5943"`, the same `--forest` used throughout the rest
+  of the page), so the micro-visuals read as part of this design, not a
+  generic grey afterthought.
+- Each card also gained a real **ⓘ info popover** (see the Methodology
+  section below) next to its "More" popover, both native `st.popover`
+  widgets so they align at the same row across all five cards.
+
+### Methodology: one real, code-verified entry per indicator
+
+**`src/methodology.py`** is now the single source of truth for how every
+number on this dashboard is actually computed -- a `MethodEntry` per
+indicator (what it measures, exact source/provider/product, date range,
+resolution, ordered processing steps, known limitations, and open
+questions where the code itself doesn't pin something down), read
+directly from the fetch/processing code while writing it, not from
+memory. It powers two things that literally cannot drift apart, because
+one generates the other:
+
+- **`METHODOLOGY.md`** (repo root) -- `python src/methodology.py` regenerates it.
+- **The dashboard's own Methodology tab** -- renders the same `ENTRIES` list directly.
+
+Covers, at minimum, exactly the indicators asked for: population,
+households, registered farmland, land area, homes with solar, NDVI,
+NDVI change, KMeans land cover, SAR backscatter, SAR water mask, both
+flood-extent methods, AHN DTM, AHN nDSM, and NO2 -- 15 entries in total.
+Two real gaps were surfaced (not guessed around) while writing it:
+Sentinel-1 RTC's native pixel resolution is never asserted in this
+pipeline's own fetch code, and the "AHN4" label used elsewhere in this
+app's own captions is never checked against the WCS response's own
+version metadata -- both listed as open questions on their entries
+rather than stated as fact.
+
+**A small ⓘ info popover, not a broken cross-tab link.** Every KPI card
+and four of the map's own legend boxes (land cover, BRP, forest-change,
+flood) carry a `method_popover()`/`ℹ️ Method:` reference to the matching
+entry. This is deliberately a real `st.popover` (or, on the map, a plain
+text pointer) rather than a link that jumps to the Methodology tab:
+Streamlit's `st.tabs()` has no supported API to switch tabs from a
+click, and an anchor pointing into a different tab's panel lands on an
+element hidden by Streamlit's own `display:none`, which a browser can't
+usefully scroll to. Delivering the real content on the spot is the
+version of "an info icon that links to its entry" that this Streamlit
+version can actually do reliably.
+
 ## What it found (first pass)
 
 - Land cover, Aug 2025: ~77% dense vegetation (three brightness tiers —

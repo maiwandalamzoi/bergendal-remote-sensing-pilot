@@ -44,6 +44,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 from statsutil import load_stats
 from visualize import make_map, field_explorer_map, FIELD_COLOR_MODES, CROP_FAMILIES, classify_crop
 from crop_rotation import normalize_crop
+from methodology import ENTRIES as METHOD_ENTRIES
 
 BRP_PATH = Path(__file__).resolve().parent / "data" / "raw" / "brp_parcels.geojson"
 
@@ -87,6 +88,74 @@ def icon_svg(name: str, size: int = 18) -> str:
     body = _ICON_PATHS[name]
     return (f'<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
             f'stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">{body}</svg>')
+
+
+# The header's own dark green, reused as the KPI cards' data-ink colour --
+# a micro-visual should read as part of this page's design, not a grey
+# decorative afterthought in a different palette.
+KPI_INK = "#2E5943"
+
+
+def kpi_sparkline_svg(values: list, width: int = 128, height: int = 34) -> str:
+    """A real micro-chart: an actual line through the real yearly values,
+    first and last value labelled directly on the line -- at this size
+    that pair of numbers *is* the axis, not a decoration with nothing
+    readable on it. Only called for series with >=2 real points; a
+    single-point or empty series renders nothing (see kpi_card below)."""
+    vals = [v for v in values if v is not None]
+    if len(vals) < 2:
+        return ""
+    lo, hi = min(vals), max(vals)
+    rng = (hi - lo) or 1
+    pad_l, pad_r, pad_t, pad_b = 2, 2, 8, 10
+    w, h = width - pad_l - pad_r, height - pad_t - pad_b
+    n = len(vals)
+    pts = [(pad_l + i * w / (n - 1), pad_t + h - (v - lo) / rng * h) for i, v in enumerate(vals)]
+    path = " ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
+    fx, fy = pts[0]
+    lx, ly = pts[-1]
+    return (
+        f'<svg width="{width}" height="{height}" viewBox="0 0 {width} {height}" style="display:block;">'
+        f'<polyline points="{path}" fill="none" stroke="{KPI_INK}" stroke-width="2" '
+        f'stroke-linecap="round" stroke-linejoin="round"/>'
+        f'<circle cx="{fx:.1f}" cy="{fy:.1f}" r="2.2" fill="#B9C2AE"/>'
+        f'<circle cx="{lx:.1f}" cy="{ly:.1f}" r="2.6" fill="{KPI_INK}"/>'
+        f'<text x="{fx:.1f}" y="{height - 1}" font-size="9" fill="#9aa295" text-anchor="start">{vals[0]:,.0f}</text>'
+        f'<text x="{lx:.1f}" y="{height - 1}" font-size="9" fill="{KPI_INK}" text-anchor="end" '
+        f'font-weight="600">{vals[-1]:,.0f}</text>'
+        f'</svg>'
+    )
+
+
+def kpi_proportion_bar_svg(pct: float, width: int = 128, height: int = 10) -> str:
+    """A percentage as a filled proportion bar -- the honest micro-visual
+    for a single value with no time dimension to plot as a trend (a fake
+    sparkline on one data point would be decoration, not information)."""
+    pct = max(0.0, min(100.0, pct))
+    filled = pct / 100 * width
+    return (
+        f'<svg width="{width}" height="{height}" viewBox="0 0 {width} {height}" style="display:block;">'
+        f'<rect x="0" y="0" width="{width}" height="{height}" rx="{height / 2:.1f}" fill="#E2ECE4"/>'
+        f'<rect x="0" y="0" width="{filled:.1f}" height="{height}" rx="{height / 2:.1f}" fill="{KPI_INK}"/>'
+        f'</svg>'
+    )
+
+
+def kpi_card(label: str, period: str, value: str, unit: str, context: str, visual_svg: str) -> None:
+    """Every KPI card, one consistent structure: label, period, big number
+    + unit, one-line context, then a fixed-height visual slot (a real
+    sparkline/proportion bar, or empty -- never a fake line) -- so all
+    five cards render the same height regardless of which have a visual,
+    and the More/info buttons below them land at the same row."""
+    st.markdown(f"""
+    <div class="bd-kpi-card">
+      <div class="bd-kpi-label">{label}</div>
+      <div class="bd-kpi-period">{period}</div>
+      <div class="bd-kpi-value">{value}<span class="bd-kpi-unit">{unit}</span></div>
+      <div class="bd-kpi-context">{context}</div>
+      <div class="bd-kpi-visual">{visual_svg}</div>
+    </div>
+    """, unsafe_allow_html=True)
 
 
 @st.cache_data
@@ -186,6 +255,22 @@ button[data-baseweb="tab"][aria-selected="true"] { color: var(--forest) !importa
 .bd-stat-icon { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 9px; background: var(--forest-soft); color: var(--forest); display: flex; align-items: center; justify-content: center; }
 .bd-stat-num { font-family: "Fraunces", Georgia, serif; font-weight: 600; font-size: 1.5rem; color: var(--forest); line-height: 1.1; }
 .bd-stat-lbl { color: var(--ink-2); font-size: .8rem; margin-top: 2px; }
+.bd-kpi-card {
+  background: #FFFFFF; border: 1px solid var(--line); border-radius: 12px;
+  padding: 14px 16px 12px; box-shadow: 0 1px 3px rgba(22,34,28,.07);
+  height: 172px; display: flex; flex-direction: column;
+  transition: box-shadow .15s ease, transform .15s ease; margin-bottom: 6px;
+}
+.bd-kpi-card:hover { box-shadow: 0 4px 12px rgba(22,34,28,.1); transform: translateY(-1px); }
+.bd-kpi-label { font-size: .82rem; color: var(--ink-2); font-weight: 600; }
+.bd-kpi-period { font-size: .7rem; color: #9aa295; margin-top: 1px; }
+.bd-kpi-value { font-family: "Fraunces", Georgia, serif; font-weight: 600; font-size: 1.65rem;
+  color: var(--ink); margin-top: 6px; line-height: 1.15; }
+.bd-kpi-unit { font-family: "Source Sans 3", sans-serif; font-weight: 500; font-size: .8rem;
+  color: var(--ink-2); margin-left: 4px; }
+.bd-kpi-context { font-size: .78rem; color: var(--ink-2); margin-top: 4px; line-height: 1.25;
+  min-height: 2.1em; }
+.bd-kpi-visual { margin-top: auto; padding-top: 6px; min-height: 34px; display: flex; align-items: flex-end; }
 @media print {
   [data-testid="stSidebar"], header[data-testid="stHeader"],
   [data-testid="stToolbar"], button[data-baseweb="tab"] { display: none !important; }
@@ -731,7 +816,8 @@ def flood_timeline_chart(flood_event: dict) -> alt.LayerChart:
     )
 
 
-tab_overview, tab_explorer, tab_villages, tab_land, tab_climate, tab_forecast, tab_env, tab_water, tab_business = st.tabs([
+tab_overview, tab_explorer, tab_villages, tab_land, tab_climate, tab_forecast, tab_env, tab_water, \
+    tab_methodology, tab_business = st.tabs([
     t("Overview", "Overzicht"),
     t("Field Explorer", "Perceelverkenner"),
     t("Villages", "Kernen"),
@@ -740,17 +826,65 @@ tab_overview, tab_explorer, tab_villages, tab_land, tab_climate, tab_forecast, t
     t("Forecast", "Voorspelling"),
     t("Environment & Energy", "Milieu & Energie"),
     t("Water", "Water"),
+    t("Methodology", "Methodologie"),
     t("Business case", "Businesscase"),
 ])
+METHOD_BY_ID = {e.id: e for e in METHOD_ENTRIES}
+
+
+def method_popover(entry_id: str) -> None:
+    """The 'info icon that links to its entry' from every KPI card and map
+    legend -- as a real, always-working st.popover rather than a link to
+    the Methodology tab: Streamlit's st.tabs() can't be switched to from a
+    link/click (there's no supported API for it, and an anchor pointing
+    into a different tab's panel lands on an element hidden by Streamlit's
+    own display:none, which a browser can't usefully scroll to) -- so
+    "clicking it takes you straight to the real content" is delivered
+    inline, on the spot, rather than promising a cross-tab jump this
+    Streamlit version doesn't support."""
+    e = METHOD_BY_ID.get(entry_id)
+    if e is None:
+        return
+    i = 0 if LANG == "en" else 1
+    with st.popover("ℹ️", help=t("How this is calculated", "Hoe dit wordt berekend")):
+        st.markdown(f"**{e.title[i]}**")
+        st.caption(e.measures[i])
+        st.markdown(f"**{t('Source', 'Bron')}:** {e.source}")
+        st.markdown(f"**{t('Date/period', 'Datum/periode')}:** {e.date_range[i]}")
+        st.markdown(f"**{t('Resolution', 'Resolutie')}:** {e.resolution[i]}")
+        st.markdown(f"**{t('Processing', 'Verwerking')}:**")
+        for step in e.processing[i]:
+            st.caption(f"• {step}")
+        st.markdown(f"**{t('Limitations', 'Beperkingen')}:**")
+        for lim in e.limitations[i]:
+            st.caption(f"• {lim}")
+        if e.open_questions[i]:
+            st.markdown(f"**{t('Open questions', 'Open vragen')}:**")
+            for q in e.open_questions[i]:
+                st.caption(f"• {q}")
+        st.caption(f"{t('Code', 'Code')}: `{e.code_ref}` — {t('full write-up on the Methodology tab', 'volledige uitleg op het tabblad Methodologie')}.")
 
 # ======================================================================
 with tab_overview:
-    st.caption(t("Click any card below for more detail.", "Klik op een van de onderstaande kaarten voor meer detail."))
+    st.caption(t("Click any card's ⓘ for its method, or More for extra detail.",
+                  "Klik op ⓘ voor de methode, of Meer voor extra detail."))
+    _cbs_year = cbs.get("year") or "?"
+    _brp_year = brp.get("year") or "?"
+    _pop_series = [v for v in (cbs_trend.get("population") or []) if v is not None]
+    _hh_series = [v for v in (cbs_trend.get("households") or []) if v is not None]
+    _pop_delta = (_pop_series[-1] - _pop_series[0]) if len(_pop_series) >= 2 else None
+    _hh_delta = (_hh_series[-1] - _hh_series[0]) if len(_hh_series) >= 2 else None
+    _cy0 = (cbs_trend.get("years") or [None])[0]
+
     c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
-        st.metric(t("Population", "Inwoners"), m(cbs, "population"), border=True,
-                  chart_data=cbs_trend.get("population") or None, chart_type="line", delta_color="off")
-        with st.popover(t("More", "Meer"), use_container_width=True):
+        kpi_card(
+            t("Population", "Inwoners"), str(_cbs_year), m(cbs, "population"), t("residents", "inwoners"),
+            (f"+{_pop_delta:,.0f} {t('since', 'sinds')} {_cy0}" if _pop_delta else ""),
+            kpi_sparkline_svg(cbs_trend.get("population") or []),
+        )
+        bc1, bc2 = st.columns([3, 1])
+        with bc1, st.popover(t("More", "Meer"), use_container_width=True):
             st.markdown(t(
                 f"**{m(cbs, 'population_density')} residents/km²** — "
                 f"{m(cbs, 'population_male')} male, {m(cbs, 'population_female')} female.\n\n"
@@ -767,10 +901,16 @@ with tab_overview:
                 "sterfgevallen — natuurlijke krimp, gecompenseerd door migratie (de bevolking groeit nog "
                 "steeds netto — zie het groeicijfer bij Kernen/Voorspelling).",
             ))
+        with bc2:
+            method_popover("population")
     with c2:
-        st.metric(t("Households", "Huishoudens"), m(cbs, "households"), border=True,
-                  chart_data=cbs_trend.get("households") or None, chart_type="line", delta_color="off")
-        with st.popover(t("More", "Meer"), use_container_width=True):
+        kpi_card(
+            t("Households", "Huishoudens"), str(_cbs_year), m(cbs, "households"), t("households", "huishoudens"),
+            (f"+{_hh_delta:,.0f} {t('since', 'sinds')} {_cy0}" if _hh_delta else ""),
+            kpi_sparkline_svg(cbs_trend.get("households") or []),
+        )
+        bc1, bc2 = st.columns([3, 1])
+        with bc1, st.popover(t("More", "Meer"), use_container_width=True):
             st.markdown(t(
                 f"**{m(cbs, 'avg_household_size', '{:.1f}')} people/household** on average.\n\n"
                 f"{m(cbs,'single_person_households_pct')}% single-person, "
@@ -783,15 +923,29 @@ with tab_overview:
                 f"{m(cbs, 'new_homes_last_year', '{:.0f}')} nieuwe woningen afgelopen jaar — "
                 f"{m(cbs, 'housing_stock')} woningvoorraad totaal.",
             ))
+        with bc2:
+            method_popover("households")
     with c3:
-        st.metric(t("Registered farmland", "Landbouwgrond"), f"{brp.get('total_area_ha', 0):,.0f} ha", border=True)
-        with st.popover(t("More", "Meer"), use_container_width=True):
+        kpi_card(
+            t("Registered farmland", "Landbouwgrond"), str(_brp_year), f"{brp.get('total_area_ha', 0):,.0f}", "ha",
+            f"{brp.get('n_parcels', 0):,} " + t("parcels", "percelen"),
+            "",  # no time series for total BRP area exists -- real absence, not a fake line
+        )
+        bc1, bc2 = st.columns([3, 1])
+        with bc1, st.popover(t("More", "Meer"), use_container_width=True):
             st.markdown(t("**Top crops by area:**", "**Grootste gewassen naar oppervlakte:**"))
             for crop, ha in list(brp.get("top_crops_ha", {}).items())[:5]:
                 st.caption(f"{crop} — {ha:,.0f} ha")
+        with bc2:
+            method_popover("registered_farmland")
     with c4:
-        st.metric(t("Land area", "Landoppervlakte"), m(cbs, "land_area_ha"), border=True)
-        with st.popover(t("More", "Meer"), use_container_width=True):
+        kpi_card(
+            t("Land area", "Landoppervlakte"), str(_cbs_year), m(cbs, "land_area_ha"), "ha",
+            f"{m(cbs, 'water_area_ha')} ha " + t("water not included", "water niet meegeteld"),
+            "",  # constant -- no time dimension to plot
+        )
+        bc1, bc2 = st.columns([3, 1])
+        with bc1, st.popover(t("More", "Meer"), use_container_width=True):
             st.markdown(t(
                 f"**{m(cbs, 'water_area_ha')} ha** of that is water (Rhine/Waal floodplain) — not "
                 "counted in the land-area figure shown.\n\n"
@@ -802,9 +956,17 @@ with tab_overview:
                 f"{m(cbs, 'population_density')} inwoners/km² gemeentebreed — zie Kernen voor de "
                 "uitsplitsing per plaats.",
             ))
+        with bc2:
+            method_popover("land_area")
     with c5:
-        st.metric(t("Homes with solar", "Zonnepanelen"), f"{m(cbs, 'homes_with_solar_pct', '{:.0f}')}%", border=True)
-        with st.popover(t("More", "Meer"), use_container_width=True):
+        _solar_pct = (cbs.get("homes_with_solar_pct") or {}).get("value") or 0
+        kpi_card(
+            t("Homes with solar", "Zonnepanelen"), str(_cbs_year), f"{_solar_pct:.0f}", "%",
+            f"{m(cbs, 'gas_free_homes_pct', '{:.0f}')}% " + t("fully gas-free", "volledig aardgasvrij"),
+            kpi_proportion_bar_svg(_solar_pct),
+        )
+        bc1, bc2 = st.columns([3, 1])
+        with bc1, st.popover(t("More", "Meer"), use_container_width=True):
             st.markdown(t(
                 f"Only **{m(cbs, 'gas_free_homes_pct', '{:.0f}')}% gas-free** — the remaining energy "
                 "transition is heating, not solar adoption.\n\n"
@@ -815,6 +977,8 @@ with tab_overview:
                 f"Gem. elektriciteitsverbruik: {m(cbs, 'avg_electricity_use_kwh', '{:.0f}')} kWh/jr · gem. "
                 f"teruglevering zon: {m(cbs, 'avg_solar_feedback_kwh', '{:.0f}')} kWh/jr.",
             ))
+        with bc2:
+            method_popover("homes_with_solar")
 
     st.divider()
     st.subheader(t("Map", "Kaart"))
@@ -1994,6 +2158,52 @@ with tab_water:
         "- Nog niet gedaan: validatie tegen de eigen peilstok-/oppervlaktedata van Waterschap "
         "Rivierenland — het aanbevolen startpunt uit de concept-notitie om hier een vertrouwd product "
         "van te maken.",
+    ))
+
+# ======================================================================
+with tab_methodology:
+    st.subheader(t("How every number on this site is actually calculated",
+                    "Hoe elk cijfer op deze site daadwerkelijk wordt berekend"))
+    st.caption(t(
+        "One entry per indicator: what it measures, the exact source and processing, and its known "
+        "limitations — read directly from the code that computes it "
+        "(`src/methodology.py`), not written from memory. Where the code itself doesn't pin something "
+        "down, it's listed as an open question below rather than guessed. The same file generates "
+        "`METHODOLOGY.md` in the repository root, so the two can't drift apart.",
+        "Eén item per indicator: wat het meet, de exacte bron en verwerking, en de bekende beperkingen "
+        "— rechtstreeks uitgelezen uit de code die het berekent (`src/methodology.py`), niet uit het "
+        "geheugen geschreven. Waar de code zelf iets niet vastlegt, staat dat hieronder als open vraag "
+        "in plaats van geraden. Hetzelfde bestand genereert `METHODOLOGY.md` in de hoofdmap van de "
+        "repository, zodat de twee niet uit elkaar kunnen lopen.",
+    ))
+    i = 0 if LANG == "en" else 1
+    for _e in METHOD_ENTRIES:
+        with st.expander(f"{_e.title[i]}"):
+            st.caption(_e.measures[i])
+            st.markdown(f"**{t('Source', 'Bron')}:** {_e.source}")
+            st.markdown(f"**{t('Date/period', 'Datum/periode')}:** {_e.date_range[i]}")
+            st.markdown(f"**{t('Resolution', 'Resolutie')}:** {_e.resolution[i]}")
+            st.markdown(f"**{t('Processing steps', 'Verwerkingsstappen')}:**")
+            for _step in _e.processing[i]:
+                st.markdown(f"- {_step}")
+            st.markdown(f"**{t('Known limitations', 'Bekende beperkingen')}:**")
+            for _lim in _e.limitations[i]:
+                st.markdown(f"- {_lim}")
+            if _e.open_questions[i]:
+                st.warning(t("**Open question — not guessed:**", "**Open vraag — niet geraden:**"))
+                for _q in _e.open_questions[i]:
+                    st.markdown(f"- {_q}")
+            st.caption(f"{t('Source code', 'Broncode')}: `{_e.code_ref}`")
+    st.divider()
+    st.caption(t(
+        "Not yet covered here: crop rotation (see the Land & Crops tab's own bug-and-method writeup), "
+        "the forecast models (see the Forecast tab's own \"how this is calculated\" expander), and the "
+        "villages/soil/CBS-trend/land-cover-change modules — real methods, documented inline on their "
+        "own tabs already rather than duplicated here twice.",
+        "Hier nog niet behandeld: gewasrotatie (zie de eigen bug-en-methode-uitleg op het tabblad Land "
+        "& Gewassen), de voorspellingsmodellen (zie de eigen \"hoe dit wordt berekend\"-uitklapper op "
+        "het tabblad Voorspelling), en de modules voor kernen/bodem/CBS-trend/landgebruikverandering — "
+        "echte methodes, al inline gedocumenteerd op hun eigen tabblad in plaats van hier dubbel.",
     ))
 
 # ======================================================================
