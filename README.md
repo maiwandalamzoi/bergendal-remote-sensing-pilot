@@ -623,11 +623,13 @@ same height regardless of what it contains:
   directly on the line -- the actual axis at this size, not decoration.
 - **Homes with solar** gets a proportion bar (`kpi_proportion_bar_svg()`) --
   the honest micro-visual for one percentage with no time series behind it.
-- **Registered farmland** and **Land area** show *no* visual, on
-  purpose: neither has a real multi-year series in this pipeline (BRP
+- **Registered farmland** and **Land area** originally showed *no*
+  visual -- neither has a real multi-year series in this pipeline (BRP
   only has the current registry year; land area is structurally
-  constant) and a decorative line with nothing behind it would be the
-  thing this whole redesign was fixing.
+  constant) and a decorative line with nothing behind it would have
+  been the thing this whole redesign was fixing. Superseded below by a
+  composition visual once a real, non-fake share-of-a-real-total
+  existed to show instead.
 - Every card's data-ink colour is the header's own dark green
   (`KPI_INK = "#2E5943"`, the same `--forest` used throughout the rest
   of the page), so the micro-visuals read as part of this design, not a
@@ -660,6 +662,49 @@ pipeline's own fetch code, and the "AHN4" label used elsewhere in this
 app's own captions is never checked against the WCS response's own
 version metadata -- both listed as open questions on their entries
 rather than stated as fact.
+
+### Every measurement placed on its own real scale, not shown bare
+
+Direct feedback: several numbers looked "naked" -- a percentage or a
+bounded scientific index with nothing showing *where in its real range*
+the value sits, and two Overview cards (Registered farmland, Land area)
+had no visual at all. Three small, reused helpers in `dashboard.py`
+close this without inventing a different design language per metric:
+
+- **`kpi_stacked_bar_svg()`** -- a composition, not a single
+  proportion: two or more real quantities as segments of one bar, each
+  segment's width its own real share of the total (a 2px gap between
+  segments, per this project's own dataviz convention, rather than one
+  flat fill implying a single uniform quantity). Used for **Registered
+  farmland** (farmland ha vs. the rest of the municipality's land) and
+  **Land area** (land ha vs. water ha) -- both cards now show a real
+  composition instead of nothing, and both gained a "X% of ..." line
+  in their context text.
+- **`index_range_svg()`** -- a bounded scientific index (NDVI/NDWI's
+  real -1..+1 range) placed on a diverging track from a low-value
+  colour through a neutral grey midpoint to a high-value colour, both
+  endpoints labelled with the scale itself, with a marker at the
+  actual value -- so the number's *position* in its own real range is
+  visible, not just its digits. NDVI uses brown (low vigour) -> green
+  (high vigour); NDWI uses brown (dry) -> blue (wet), the same
+  brown/green convention the map's own NDVI-change legend already
+  used, so a number and its colour never disagree. Applied to the
+  Trends & Climate Year Explorer's NDVI/NDWI metrics and to the
+  Field Explorer field-detail panel's NDVI 2025 / NDVI-change numbers.
+- **`metric_with_bar()`** -- a thin wrapper that renders a normal
+  `st.metric` and drops one of the visuals above directly underneath
+  it, so every percentage metric elsewhere in the app (cloud-free
+  coverage, homes with solar, gas-free homes, SAR/optical water
+  agreement IoU, soil clay/sand/silt %) gets the same proportion-bar
+  treatment as the Overview cards without a bespoke HTML block at each
+  call site.
+
+Every one of these bars is real language-independent SVG -- built once
+per value, not per language -- so the fix carries through both English
+and Nederlands without a second implementation to keep in sync; the
+`ⓘ` methodology popovers next to the NDVI/NDWI metrics use the same
+`method_popover()` as the Overview cards, so the "what does this
+number actually mean" link exists outside the Overview tab too.
 
 **A small ⓘ info popover, not a broken cross-tab link.** Every KPI card
 and four of the map's own legend boxes (land cover, BRP, forest-change,

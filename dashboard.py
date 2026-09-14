@@ -141,6 +141,67 @@ def kpi_proportion_bar_svg(pct: float, width: int = 128, height: int = 10) -> st
     )
 
 
+def kpi_stacked_bar_svg(segments: list[tuple[float, str]], width: int = 128, height: int = 14) -> str:
+    """A composition, not a single proportion -- e.g. farmland vs the rest
+    of the municipality, or land vs water. Each segment gets its own real
+    share of the total width, with a thin gap between segments (never one
+    flat fill implying a single uniform quantity)."""
+    total = sum(max(0.0, v) for v, _ in segments) or 1.0
+    gap = 2
+    parts = []
+    x = 0.0
+    n = len(segments)
+    for i, (v, color) in enumerate(segments):
+        raw_w = max(0.0, v) / total * width
+        seg_w = max(0.0, raw_w - (gap if i < n - 1 else 0))
+        if seg_w > 0:
+            parts.append(f'<rect x="{x:.1f}" y="0" width="{seg_w:.1f}" height="{height}" rx="3" fill="{color}"/>')
+        x += raw_w
+    return (
+        f'<svg width="{width}" height="{height}" viewBox="0 0 {width} {height}" style="display:block;">'
+        + "".join(parts) + "</svg>"
+    )
+
+
+def index_range_svg(value: float, vmin: float, vmax: float, width: int = 128, height: int = 10,
+                     low_color: str = "#A2712F", high_color: str = "#2E5943", key: str = "idx") -> str:
+    """A bounded scientific index (NDVI's -1..+1, a percentage's 0..100,
+    etc.) placed on its own real, fixed scale -- a marker on a diverging
+    track from low_color (vmin) through a neutral grey midpoint to
+    high_color (vmax), both endpoints labelled with the scale itself so
+    the number's *position* in its real range is visible, not just its
+    digits. `key` only needs to be unique enough to avoid two gradient
+    ids colliding on the same page."""
+    v = max(vmin, min(vmax, value))
+    frac = (v - vmin) / (vmax - vmin) if vmax > vmin else 0.5
+    x = frac * width
+    grad_id = f"bd-idx-{key}"
+    return (
+        f'<svg width="{width}" height="{height + 12}" viewBox="0 0 {width} {height + 12}" style="display:block;">'
+        f'<defs><linearGradient id="{grad_id}" x1="0" y1="0" x2="1" y2="0">'
+        f'<stop offset="0%" stop-color="{low_color}"/><stop offset="50%" stop-color="#CBD3C1"/>'
+        f'<stop offset="100%" stop-color="{high_color}"/></linearGradient></defs>'
+        f'<rect x="0" y="0" width="{width}" height="{height}" rx="{height / 2:.1f}" fill="url(#{grad_id})" opacity="0.5"/>'
+        f'<line x1="{x:.1f}" y1="-2" x2="{x:.1f}" y2="{height + 2}" stroke="#16221C" stroke-width="2.2" '
+        f'stroke-linecap="round"/>'
+        f'<text x="0" y="{height + 11}" font-size="9" fill="#9aa295" text-anchor="start">{vmin:g}</text>'
+        f'<text x="{width}" y="{height + 11}" font-size="9" fill="#9aa295" text-anchor="end">{vmax:g}</text>'
+        f'</svg>'
+    )
+
+
+def metric_with_bar(col, label: str, value_str: str, visual_svg: str) -> None:
+    """A st.metric-style number, immediately followed by one small inline
+    range/proportion visual underneath it -- used for the many single
+    scientific-index or percentage metrics scattered outside the Overview
+    KPI cards (NDVI, NDWI, cloud-free %, soil texture %, IoU %, ...) so
+    each one shows *where on its real scale* the number sits, not just
+    the digit. Reuses st.metric for the label/value (native styling,
+    keyboard/accessibility for free) and adds only the visual under it."""
+    col.metric(label, value_str)
+    col.markdown(f'<div style="margin-top:-8px;">{visual_svg}</div>', unsafe_allow_html=True)
+
+
 def kpi_card(label: str, period: str, value: str, unit: str, context: str, visual_svg: str) -> None:
     """Every KPI card, one consistent structure: label, period, big number
     + unit, one-line context, then a fixed-height visual slot (a real
@@ -926,10 +987,17 @@ with tab_overview:
         with bc2:
             method_popover("households")
     with c3:
+        _land_ha = (cbs.get("land_area_ha") or {}).get("value") or 0
+        _farm_ha = brp.get("total_area_ha", 0)
+        _farm_rest_ha = max(0.0, _land_ha - _farm_ha)
+        _farm_pct = (_farm_ha / _land_ha * 100) if _land_ha else 0
         kpi_card(
-            t("Registered farmland", "Landbouwgrond"), str(_brp_year), f"{brp.get('total_area_ha', 0):,.0f}", "ha",
-            f"{brp.get('n_parcels', 0):,} " + t("parcels", "percelen"),
-            "",  # no time series for total BRP area exists -- real absence, not a fake line
+            t("Registered farmland", "Landbouwgrond"), str(_brp_year), f"{_farm_ha:,.0f}", "ha",
+            f"{brp.get('n_parcels', 0):,} " + t("parcels", "percelen") +
+            f" · {_farm_pct:.0f}% " + t("of the municipality's land", "van de landoppervlakte"),
+            # composition, not a fake trend -- real farmland ha vs the
+            # rest of the municipality's land, both shares of one total
+            kpi_stacked_bar_svg([(_farm_ha, KPI_INK), (_farm_rest_ha, "#CBD3C1")]),
         )
         bc1, bc2 = st.columns([3, 1])
         with bc1, st.popover(t("More", "Meer"), use_container_width=True):
@@ -939,10 +1007,15 @@ with tab_overview:
         with bc2:
             method_popover("registered_farmland")
     with c4:
+        _water_ha = (cbs.get("water_area_ha") or {}).get("value") or 0
+        _terr_ha = _land_ha + _water_ha
+        _water_pct = (_water_ha / _terr_ha * 100) if _terr_ha else 0
         kpi_card(
             t("Land area", "Landoppervlakte"), str(_cbs_year), m(cbs, "land_area_ha"), "ha",
-            f"{m(cbs, 'water_area_ha')} ha " + t("water not included", "water niet meegeteld"),
-            "",  # constant -- no time dimension to plot
+            f"{m(cbs, 'water_area_ha')} ha " + t("water", "water") + f" · {_water_pct:.0f}%",
+            # composition -- land vs water share of the municipality's
+            # full territory, not the land figure alone
+            kpi_stacked_bar_svg([(_land_ha, KPI_INK), (_water_ha, "#3B6E8A")]),
         )
         bc1, bc2 = st.columns([3, 1])
         with bc1, st.popover(t("More", "Meer"), use_container_width=True):
@@ -1080,8 +1153,16 @@ with tab_explorer:
             st.write(f"**{t('Area', 'Oppervlakte')}:** {row['area_ha']:.2f} ha")
             ndvi25, ndvi24 = row.get("ndvi_2025"), row.get("ndvi_2024")
             if pd.notna(ndvi25) and pd.notna(ndvi24):
+                _ndvi_delta = ndvi25 - ndvi24
                 st.write(f"**NDVI 2025:** {ndvi25:.2f}")
-                st.write(f"**{t('NDVI change (2024→2025)', 'NDVI-verandering (2024→2025)')}:** {ndvi25 - ndvi24:+.2f}")
+                st.markdown(index_range_svg(ndvi25, -1, 1, low_color="#A2712F", high_color=KPI_INK, key="field-ndvi"),
+                            unsafe_allow_html=True)
+                st.write(f"**{t('NDVI change (2024→2025)', 'NDVI-verandering (2024→2025)')}:** {_ndvi_delta:+.2f}")
+                # same brown-to-green convention as the map's own NDVI-change
+                # legend (browning -> greening), so a field's number and its
+                # colour on the map always agree.
+                st.markdown(index_range_svg(_ndvi_delta, -1, 1, low_color="#A2712F", high_color=KPI_INK, key="field-ndvichg"),
+                            unsafe_allow_html=True)
                 _how_going = t("How it's going", "Hoe het ervoor staat")
                 st.markdown(f"**{_how_going}**")
                 st.bar_chart(pd.DataFrame({"NDVI": [ndvi24, ndvi25]}, index=["2024", "2025"]))
@@ -1380,9 +1461,18 @@ with tab_land:
 
         tc1, tc2, tc3, tc4 = st.columns(4)
         clay_val, sand_val, silt_val = _sp.get("clay", {}).get("mean"), _sp.get("sand", {}).get("mean"), _sp.get("silt", {}).get("mean")
-        tc1.metric(t("Clay", "Klei"), f"{clay_val:.0f}%" if clay_val else "n/a")
-        tc2.metric(t("Sand", "Zand"), f"{sand_val:.0f}%" if sand_val else "n/a")
-        tc3.metric(t("Silt", "Silt"), f"{silt_val:.0f}%" if silt_val else "n/a")
+        if clay_val:
+            metric_with_bar(tc1, t("Clay", "Klei"), f"{clay_val:.0f}%", kpi_proportion_bar_svg(clay_val))
+        else:
+            tc1.metric(t("Clay", "Klei"), "n/a")
+        if sand_val:
+            metric_with_bar(tc2, t("Sand", "Zand"), f"{sand_val:.0f}%", kpi_proportion_bar_svg(sand_val))
+        else:
+            tc2.metric(t("Sand", "Zand"), "n/a")
+        if silt_val:
+            metric_with_bar(tc3, t("Silt", "Silt"), f"{silt_val:.0f}%", kpi_proportion_bar_svg(silt_val))
+        else:
+            tc3.metric(t("Silt", "Silt"), "n/a")
         bd_val = _sp.get("bdod", {}).get("mean")
         tc4.metric(t("Bulk density", "Bulkdichtheid"), f"{bd_val:.2f} kg/dm³" if bd_val else "n/a")
 
@@ -1529,12 +1619,24 @@ with tab_climate:
         _source_label = {"landsat": "Landsat (30m)", "sentinel2": "Sentinel-2 (10m)"}
 
         yc1, yc2, yc3, yc4 = st.columns(4)
-        yc1.metric("NDVI", f"{trend['mean_ndvi'][_idx]:.3f}")
+        # Each index placed on its own real, fixed scale (-1..+1 for
+        # NDVI/NDWI, 0..100% for cloud-free coverage) via a small coloured
+        # range bar under the number -- not just the digit on its own.
+        metric_with_bar(yc1, "NDVI", f"{trend['mean_ndvi'][_idx]:.3f}",
+                         index_range_svg(trend["mean_ndvi"][_idx], -1, 1, low_color="#A2712F", high_color=KPI_INK, key="ndvi"))
         _ndwi_series = trend.get("mean_ndwi") or [None] * len(_years)
         _ndwi_val = _ndwi_series[_idx] if _idx < len(_ndwi_series) else None
-        yc2.metric("NDWI", f"{_ndwi_val:.3f}" if _ndwi_val is not None else "n/a")
+        if _ndwi_val is not None:
+            metric_with_bar(yc2, "NDWI", f"{_ndwi_val:.3f}",
+                             index_range_svg(_ndwi_val, -1, 1, low_color="#A2712F", high_color="#3B6E8A", key="ndwi"))
+        else:
+            yc2.metric("NDWI", "n/a")
         yc3.metric(t("Sensor", "Sensor"), _source_label.get(trend["source"][_idx], trend["source"][_idx]))
-        yc4.metric(t("Cloud-free coverage", "Wolkenvrije dekking"), f"{trend['clear_pct'][_idx]:.0f}%")
+        metric_with_bar(yc4, t("Cloud-free coverage", "Wolkenvrije dekking"), f"{trend['clear_pct'][_idx]:.0f}%",
+                         kpi_proportion_bar_svg(trend["clear_pct"][_idx]))
+        _yic1, _yic2 = st.columns([10, 1])
+        with _yic2:
+            method_popover("ndvi")
 
         _aug = weather.get("august", {})
         if sel_year in _aug.get("years", []):
@@ -2051,8 +2153,10 @@ with tab_env:
     st.divider()
     st.subheader(t("Energy transition — CBS, 2024", "Energietransitie — CBS, 2024"))
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric(t("Homes with solar", "Zonnepanelen"), f"{m(cbs,'homes_with_solar_pct','{:.0f}')}%")
-    c2.metric(t("Gas-free homes", "Aardgasvrije woningen"), f"{m(cbs,'gas_free_homes_pct','{:.0f}')}%")
+    _solar_pct2 = (cbs.get("homes_with_solar_pct") or {}).get("value") or 0
+    _gasfree_pct2 = (cbs.get("gas_free_homes_pct") or {}).get("value") or 0
+    metric_with_bar(c1, t("Homes with solar", "Zonnepanelen"), f"{_solar_pct2:.0f}%", kpi_proportion_bar_svg(_solar_pct2))
+    metric_with_bar(c2, t("Gas-free homes", "Aardgasvrije woningen"), f"{_gasfree_pct2:.0f}%", kpi_proportion_bar_svg(_gasfree_pct2))
     c3.metric(t("Avg. electricity use", "Gem. elektriciteitsverbruik"), f"{m(cbs,'avg_electricity_use_kwh')} kWh/jr")
     c4.metric(t("Avg. solar feed-in", "Gem. teruglevering zon"), f"{m(cbs,'avg_solar_feedback_kwh')} kWh/jr")
     st.caption(t(
@@ -2148,6 +2252,7 @@ with tab_water:
     c1.metric(t("SAR ↔ optical water agreement", "SAR ↔ optische overeenstemming water"), f"{cross.get('iou_pct', 0):.0f}% IoU",
               delta=f"SAR {cross.get('sar_water_pct', 0):.1f}% vs " + t("optical", "optisch") + f" {cross.get('optical_water_pct', 0):.1f}%",
               delta_color="off")
+    c1.markdown(kpi_proportion_bar_svg(cross.get("iou_pct", 0)), unsafe_allow_html=True)
     c2.metric(t("Elevation range (AHN)", "Hoogtebereik (AHN)"), f"{ahn.get('elevation_min_m', 0):.0f}–{ahn.get('elevation_max_m', 0):.0f} m NAP",
               delta=t(f"canopy/roofs >15m over {ahn.get('ndsm_over_15m_pct', 0):.1f}% of ground",
                       f"bladerdak/daken >15m over {ahn.get('ndsm_over_15m_pct', 0):.1f}% van de grond"),
