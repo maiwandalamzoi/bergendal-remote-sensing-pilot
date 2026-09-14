@@ -349,7 +349,16 @@ def m(section: dict, key: str, fmt: str = "{:,.0f}") -> str:
     return fmt.format(v) if v is not None else "n/a"
 
 
-CHART_AXIS_KW = dict(grid=False, domainColor="#CBD3C1", labelColor="#51604F", titleColor="#51604F")
+# Split X/Y so the y-axis (a real quantity) can carry a light, recessive
+# horizontal grid -- genuinely easier to read a value off -- without the
+# x-axis (almost always an ordinal year: 20+ categories) turning into a
+# busy vertical comb. Font matches the app's own body type (Source Sans
+# 3) rather than Vega-Lite's default, so a chart never reads as a
+# different, less-designed surface bolted onto the page around it.
+_CHART_AXIS_BASE = dict(domainColor="#CBD3C1", labelColor="#51604F", titleColor="#51604F",
+                        labelFont="Source Sans 3", titleFont="Source Sans 3", titleFontWeight=600)
+CHART_AXIS_X_KW = dict(_CHART_AXIS_BASE, grid=False)
+CHART_AXIS_Y_KW = dict(_CHART_AXIS_BASE, grid=True, gridColor="#E9ECE1", gridDash=[1, 0])
 
 
 def _year_highlight_layers(df: pd.DataFrame, value_col: str, highlight_year: int | None) -> list:
@@ -387,7 +396,7 @@ def ndvi_trend_chart(trend: dict, highlight_year: int | None = None) -> alt.Laye
         x=alt.X("year:O", title=None, axis=alt.Axis(labelAngle=-45)),
         y=alt.Y("NDVI:Q", title=t("Mean NDVI (clear ground)", "Gemiddelde NDVI (onbewolkt)"), scale=alt.Scale(zero=False)),
     )
-    line = base.mark_line(color="#B9C2AE", strokeWidth=1.5)
+    line = base.mark_line(color="#B9C2AE", strokeWidth=1.5, interpolate="monotone")
     points = base.mark_point(size=75, filled=True).encode(
         color=alt.Color(
             "source:N", title=t("Source", "Bron"),
@@ -418,7 +427,7 @@ def ndvi_trend_chart(trend: dict, highlight_year: int | None = None) -> alt.Laye
         alt.layer(*layers)
         .properties(height=280)
         .configure_view(strokeWidth=0)
-        .configure_axis(**CHART_AXIS_KW)
+        .configure_axisX(**CHART_AXIS_X_KW).configure_axisY(**CHART_AXIS_Y_KW)
     )
 
 
@@ -438,7 +447,7 @@ def ndwi_trend_chart(trend: dict, highlight_year: int | None = None) -> alt.Laye
         x=alt.X("year:O", title=None, axis=alt.Axis(labelAngle=-45)),
         y=alt.Y("NDWI:Q", title=t("Mean NDWI (clear ground)", "Gemiddelde NDWI (onbewolkt)"), scale=alt.Scale(zero=False)),
     )
-    line = base.mark_line(color="#B9C2AE", strokeWidth=1.5)
+    line = base.mark_line(color="#B9C2AE", strokeWidth=1.5, interpolate="monotone")
     points = base.mark_point(size=75, filled=True).encode(
         color=alt.Color(
             "source:N", title=t("Source", "Bron"),
@@ -453,7 +462,7 @@ def ndwi_trend_chart(trend: dict, highlight_year: int | None = None) -> alt.Laye
         alt.layer(*layers)
         .properties(height=240)
         .configure_view(strokeWidth=0)
-        .configure_axis(**CHART_AXIS_KW)
+        .configure_axisX(**CHART_AXIS_X_KW).configure_axisY(**CHART_AXIS_Y_KW)
     )
 
 
@@ -468,7 +477,7 @@ def weather_year_chart(years: list, values: list, title: str, color: str, fmt: s
         y=alt.Y("value:Q", title=title),
         tooltip=[alt.Tooltip("year:O", title=t("Year", "Jaar")), alt.Tooltip("value:Q", title=title, format=fmt)],
     ).properties(height=180)
-    return chart.configure_view(strokeWidth=0).configure_axis(**CHART_AXIS_KW)
+    return chart.configure_view(strokeWidth=0).configure_axisX(**CHART_AXIS_X_KW).configure_axisY(**CHART_AXIS_Y_KW)
 
 
 def correlation_chart(correlations: dict) -> alt.Chart:
@@ -492,7 +501,7 @@ def correlation_chart(correlations: dict) -> alt.Chart:
         tooltip=[alt.Tooltip("pair:N", title=t("Pair", "Paar")), alt.Tooltip("r:Q", title="Pearson r", format="+.2f")],
     ).properties(height=26 * len(df) + 20)
     zero_line = alt.Chart(pd.DataFrame({"x": [0]})).mark_rule(color="#51604F", strokeWidth=1).encode(x="x:Q")
-    return alt.layer(chart, zero_line).configure_view(strokeWidth=0).configure_axis(**CHART_AXIS_KW)
+    return alt.layer(chart, zero_line).configure_view(strokeWidth=0).configure_axisX(**CHART_AXIS_X_KW).configure_axisY(**CHART_AXIS_Y_KW)
 
 
 LANDCOVER_TREND_COLORS = {
@@ -518,13 +527,13 @@ def landcover_trend_chart(years: list, values: list, category: str) -> alt.Chart
             stops=[alt.GradientStop(color=color, offset=0), alt.GradientStop(color="#ffffff", offset=1)],
             x1=1, x2=1, y1=1, y2=0,
         ),
-        opacity=0.55,
+        opacity=0.55, interpolate="monotone",
     ).encode(
         x=alt.X("year:O", title=None, axis=alt.Axis(labelAngle=-45)),
         y=alt.Y("ha:Q", title="ha", scale=alt.Scale(zero=False)),
         tooltip=[alt.Tooltip("year:O", title=t("Year", "Jaar")), alt.Tooltip("ha:Q", title="ha", format=",.0f")],
     ).properties(height=150)
-    return chart.configure_view(strokeWidth=0).configure_axis(**CHART_AXIS_KW)
+    return chart.configure_view(strokeWidth=0).configure_axisX(**CHART_AXIS_X_KW).configure_axisY(**CHART_AXIS_Y_KW)
 
 
 def forecast_chart(history_years: list, history_values: list, future_years: list, future_values: list,
@@ -550,12 +559,12 @@ def forecast_chart(history_years: list, history_values: list, future_years: list
         x=alt.X("year:O", title=None, axis=alt.Axis(labelAngle=-45)),
         y=alt.Y("lower:Q", title=y_title, scale=alt.Scale(zero=False)), y2="upper:Q",
     )
-    hist_line = alt.Chart(hist_df).mark_line(color=color, strokeWidth=2).encode(x="year:O", y="value:Q")
+    hist_line = alt.Chart(hist_df).mark_line(color=color, strokeWidth=2, interpolate="monotone").encode(x="year:O", y="value:Q")
     hist_points = alt.Chart(hist_df).mark_point(size=55, filled=True, color=color).encode(
         x="year:O", y="value:Q",
         tooltip=[alt.Tooltip("year:O", title=t("Year", "Jaar")), alt.Tooltip("value:Q", title=t("Observed", "Waargenomen"), format=value_fmt)],
     )
-    fut_line = alt.Chart(bridge_df).mark_line(color=color, strokeWidth=2, strokeDash=[5, 3]).encode(x="year:O", y="value:Q")
+    fut_line = alt.Chart(bridge_df).mark_line(color=color, strokeWidth=2, strokeDash=[5, 3], interpolate="monotone").encode(x="year:O", y="value:Q")
     fut_points = alt.Chart(fut_df).mark_point(size=55, filled=False, strokeWidth=2, color=color).encode(
         x="year:O", y="value:Q",
         tooltip=[alt.Tooltip("year:O", title=t("Year", "Jaar")), alt.Tooltip("value:Q", title=t("Forecast", "Voorspelling"), format=value_fmt)],
@@ -564,7 +573,7 @@ def forecast_chart(history_years: list, history_values: list, future_years: list
         alt.layer(band, hist_line, fut_line, hist_points, fut_points)
         .properties(height=height)
         .configure_view(strokeWidth=0)
-        .configure_axis(**CHART_AXIS_KW)
+        .configure_axisX(**CHART_AXIS_X_KW).configure_axisY(**CHART_AXIS_Y_KW)
     )
 
 
@@ -602,7 +611,7 @@ def crop_family_forecast_chart(current_ha: dict, projected_ha: dict) -> alt.Char
         tooltip=[alt.Tooltip("family:N", title=t("Family", "Familie")), alt.Tooltip("series:N", title=None),
                  alt.Tooltip("ha:Q", title=t("Hectares", "Hectare"), format=",.0f")],
     ).properties(height=30 * len(families) + 40)
-    return chart.configure_view(strokeWidth=0).configure_axis(**CHART_AXIS_KW)
+    return chart.configure_view(strokeWidth=0).configure_axisX(**CHART_AXIS_X_KW).configure_axisY(**CHART_AXIS_Y_KW)
 
 
 def air_quality_trend_chart(years: list, values: list, pollutant: str, color: str) -> alt.Chart:
@@ -614,7 +623,7 @@ def air_quality_trend_chart(years: list, values: list, pollutant: str, color: st
         x=alt.X("year:O", title=None, axis=alt.Axis(labelAngle=-45)),
         y=alt.Y("value:Q", title="µg/m³", scale=alt.Scale(zero=False)),
     )
-    line = base.mark_line(color=color, strokeWidth=2)
+    line = base.mark_line(color=color, strokeWidth=2, interpolate="monotone")
     points = base.mark_point(size=55, filled=True, color=color).encode(
         tooltip=[alt.Tooltip("year:O", title=t("Year", "Jaar")), alt.Tooltip("value:Q", title=pollutant, format=".1f")],
     )
@@ -627,7 +636,7 @@ def air_quality_trend_chart(years: list, values: list, pollutant: str, color: st
         layers.append(ring)
     return (
         alt.layer(*layers).properties(height=170)
-        .configure_view(strokeWidth=0).configure_axis(**CHART_AXIS_KW)
+        .configure_view(strokeWidth=0).configure_axisX(**CHART_AXIS_X_KW).configure_axisY(**CHART_AXIS_Y_KW)
     )
 
 
@@ -645,7 +654,7 @@ def village_bar_chart(villages: list, value_key: str, title: str, color: str, fm
         y=alt.Y("village:N", title=None, sort=None),
         tooltip=[alt.Tooltip("village:N", title=t("Village", "Kern")), alt.Tooltip("value:Q", title=title, format=fmt)],
     ).properties(height=22 * len(df) + 20)
-    return chart.configure_view(strokeWidth=0).configure_axis(**CHART_AXIS_KW)
+    return chart.configure_view(strokeWidth=0).configure_axisX(**CHART_AXIS_X_KW).configure_axisY(**CHART_AXIS_Y_KW)
 
 
 def rotation_transitions_chart(top_transitions: dict) -> alt.Chart:
@@ -660,7 +669,7 @@ def rotation_transitions_chart(top_transitions: dict) -> alt.Chart:
         y=alt.Y("pair:N", title=None, sort=None, axis=alt.Axis(labelLimit=340)),
         tooltip=[alt.Tooltip("pair:N", title=t("Transition", "Overgang")), alt.Tooltip("count:Q", title=t("Fields", "Percelen"))],
     ).properties(height=26 * len(df) + 20)
-    return chart.configure_view(strokeWidth=0).configure_axis(**CHART_AXIS_KW)
+    return chart.configure_view(strokeWidth=0).configure_axisX(**CHART_AXIS_X_KW).configure_axisY(**CHART_AXIS_Y_KW)
 
 
 def crop_family_chart(gdf: gpd.GeoDataFrame) -> alt.Chart:
@@ -683,7 +692,7 @@ def crop_family_chart(gdf: gpd.GeoDataFrame) -> alt.Chart:
         color=alt.Color("label:N", scale=alt.Scale(domain=df["label"].tolist(), range=df["color"].tolist()), legend=None),
         tooltip=[alt.Tooltip("label:N", title=t("Family", "Familie")), alt.Tooltip("ha:Q", title=t("Hectares", "Hectare"), format=",.0f")],
     ).properties(height=26 * len(df) + 20)
-    return chart.configure_view(strokeWidth=0).configure_axis(**CHART_AXIS_KW)
+    return chart.configure_view(strokeWidth=0).configure_axisX(**CHART_AXIS_X_KW).configure_axisY(**CHART_AXIS_Y_KW)
 
 
 def flood_timeline_chart(flood_event: dict) -> alt.LayerChart:
@@ -704,7 +713,7 @@ def flood_timeline_chart(flood_event: dict) -> alt.LayerChart:
             stops=[alt.GradientStop(color=COLOR_WATER, offset=0), alt.GradientStop(color="#ffffff", offset=1)],
             x1=1, x2=1, y1=1, y2=0,
         ),
-        opacity=0.5,
+        opacity=0.5, interpolate="monotone",
     )
     points = base.mark_point(size=90, filled=True, color=COLOR_WATER).encode(
         tooltip=[
@@ -718,7 +727,7 @@ def flood_timeline_chart(flood_event: dict) -> alt.LayerChart:
         alt.layer(area, points)
         .properties(height=260)
         .configure_view(strokeWidth=0)
-        .configure_axis(**CHART_AXIS_KW)
+        .configure_axisX(**CHART_AXIS_X_KW).configure_axisY(**CHART_AXIS_Y_KW)
     )
 
 

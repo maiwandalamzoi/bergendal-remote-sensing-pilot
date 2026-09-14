@@ -324,6 +324,33 @@ CROP_FAMILIES: dict[str, tuple[str, str, str, str]] = {
 }
 
 
+# Hand-drawn line icons (Feather/Lucide-style: single stroke, rounded
+# caps, plain geometric shapes -- the same system dashboard.py's
+# icon_svg() uses) for map contexts where real HTML renders: the crop
+# marker pins and this file's own map legends. The CROP_FAMILIES emoji
+# above stay as-is for plain-text contexts (Altair chart labels, Leaflet
+# GeoJsonTooltip field values) where a custom SVG can't render at all --
+# only Unicode text does there, so switching those to SVG would silently
+# break them rather than look nicer.
+CROP_ICON_SVGS: dict[str, str] = {
+    "grassland":  '<path d="M6 20 Q6 12 4 6"/><path d="M12 20 Q12 10 12 4"/><path d="M18 20 Q18 12 20 6"/>',
+    "maize":      '<ellipse cx="12" cy="12" rx="5" ry="9"/><line x1="9" y1="5" x2="9" y2="19"/><line x1="12" y1="3" x2="12" y2="21"/><line x1="15" y1="5" x2="15" y2="19"/>',
+    "cereals":    '<path d="M12 21V9"/><path d="M12 9c-2-1-3-3-2-5"/><path d="M12 9c2-1 3-3 2-5"/><path d="M12 13c-2-1-3-3-2-5"/><path d="M12 13c2-1 3-3 2-5"/>',
+    "root":       '<ellipse cx="12" cy="13" rx="7" ry="5.5"/><circle cx="9" cy="11" r=".7"/><circle cx="14" cy="14" r=".7"/><circle cx="11" cy="16" r=".7"/>',
+    "vegetables": '<path d="M12 21c-5-1-8-5-8-10a8 8 0 0 1 16 0c0 5-3 9-8 10z"/><path d="M12 21V6"/>',
+    "fruit":      '<path d="M12 8c-3-3-8-1-8 4 0 5 4 9 8 9s8-4 8-9c0-5-5-7-8-4z"/><path d="M12 8V4"/><path d="M12 5c1-1 2-1 3 0"/>',
+    "cover":      '<path d="M12 12c0-3-3-5-5-3s0 5 5 3z"/><path d="M12 12c0-3 3-5 5-3s0 5-5 3z"/><path d="M12 12c-2 2-2 5 0 7 2-2 2-5 0-7z"/>',
+    "nature":     '<circle cx="12" cy="9" r="6"/><line x1="12" y1="15" x2="12" y2="21"/>',
+    "other":      '<circle cx="12" cy="12" r="8" stroke-dasharray="3,3"/>',
+}
+
+
+def crop_icon_svg(family: str, size: int = 16, stroke: str = "currentColor") -> str:
+    body = CROP_ICON_SVGS.get(family, CROP_ICON_SVGS["other"])
+    return (f'<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="{stroke}" '
+            f'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{body}</svg>')
+
+
 def classify_crop(name: str, category: str) -> str:
     """Maps a raw BRP `gewas` name (Dutch, free-text-ish but drawn from a
     fixed registry vocabulary) to a CROP_FAMILIES key, by keyword rather than
@@ -512,7 +539,7 @@ def field_explorer_map(color_by: str = "category", center: list | None = None, l
     gdf_rd["_pred_family"] = _pred.map(lambda p: p[0])
     gdf_rd["_pred_prob"] = _pred.map(lambda p: p[1])
 
-    icon_points_rd = gdf_rd[gdf_rd["area_ha"] >= 0.3][["geometry", "_icon", "gewas", "area_ha"]].copy()
+    icon_points_rd = gdf_rd[gdf_rd["area_ha"] >= 0.3][["geometry", "_icon", "_family", "gewas", "area_ha"]].copy()
     icon_points_rd["geometry"] = icon_points_rd.geometry.centroid
     icon_gdf = icon_points_rd.to_crs(4326)
     icon_gdf["_lat"] = icon_gdf.geometry.y
@@ -599,20 +626,28 @@ def field_explorer_map(color_by: str = "category", center: list | None = None, l
             name="Crop icons" if lang == "en" else "Gewas-iconen",
         ).add_to(m)
         for _, r in icon_gdf.iterrows():
+            fam_color = CROP_FAMILIES[r["_family"]][0]
             folium.Marker(
                 location=[r["_lat"], r["_lon"]],
+                # A colour badge (the field's own family colour, so the
+                # pin and the fill it sits on always agree) with a white
+                # line-icon inside -- the professional-icon-set
+                # replacement for a bare emoji + white halo.
                 icon=folium.DivIcon(html=(
-                    f'<div style="font-size:17px;line-height:1;text-align:center;'
-                    f'text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;">{r["_icon"]}</div>'
-                )),
-                tooltip=f'{r["_icon"]} {r["gewas"]} · {r["area_ha"]:.1f} ha',
+                    f'<div style="width:22px;height:22px;border-radius:50%;background:{fam_color};'
+                    f'display:flex;align-items:center;justify-content:center;'
+                    f'box-shadow:0 1px 3px rgba(0,0,0,.45),0 0 0 1.5px #fff;">'
+                    f'{crop_icon_svg(r["_family"], size=13, stroke="#fff")}</div>'
+                ), icon_anchor=(11, 11)),
+                tooltip=f'{r["gewas"]} · {r["area_ha"]:.1f} ha',
             ).add_to(cluster)
 
         rows = "".join(
             f'<div style="display:flex;align-items:center;gap:7px;margin:3px 0;">'
-            f'<span style="width:12px;height:12px;background:{color};display:inline-block;'
-            f'border-radius:2px;flex-shrink:0;"></span><span>{icon} {label[i]}</span></div>'
-            for color, icon, *label in CROP_FAMILIES.values()
+            f'<span style="width:20px;height:20px;border-radius:50%;background:{color};flex-shrink:0;'
+            f'display:flex;align-items:center;justify-content:center;">{crop_icon_svg(fam, size=12, stroke="#fff")}</span>'
+            f'<span>{label[i]}</span></div>'
+            for fam, (color, _icon, *label) in CROP_FAMILIES.items()
         )
         legend_title = "Crop family" if lang == "en" else "Gewasfamilie"
         m.get_root().html.add_child(folium.Element(f"""
@@ -679,9 +714,10 @@ def field_explorer_map(color_by: str = "category", center: list | None = None, l
         # observed current one.
         rows = "".join(
             f'<div style="display:flex;align-items:center;gap:7px;margin:3px 0;">'
-            f'<span style="width:12px;height:12px;background:{color};display:inline-block;'
-            f'border-radius:2px;flex-shrink:0;"></span><span>{icon} {label[i]}</span></div>'
-            for color, icon, *label in CROP_FAMILIES.values()
+            f'<span style="width:20px;height:20px;border-radius:50%;background:{color};flex-shrink:0;'
+            f'display:flex;align-items:center;justify-content:center;">{crop_icon_svg(fam, size=12, stroke="#fff")}</span>'
+            f'<span>{label[i]}</span></div>'
+            for fam, (color, _icon, *label) in CROP_FAMILIES.items()
         )
         legend_title = ("Predicted next crop family (ML)", "Voorspeld volgend gewasfamilie (ML)")[i]
         _n_obs = load_stats().get("forecast", {}).get("crop_rotation", {}).get("n_transitions_observed", 0)

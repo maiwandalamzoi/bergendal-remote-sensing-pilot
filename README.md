@@ -543,6 +543,35 @@ default, the rest one click away) plus the flood legend collapsible on
 its own bottom-right — the map now shows exactly as much as is asked
 for, not everything at once.
 
+### Chart polish, and a professional icon set for the map's own crop markers
+
+Two more direct-feedback passes:
+
+**Charts (`dashboard.py`):** every line chart (NDVI/NDWI trend, air
+quality trend, the forecast charts) now uses `interpolate="monotone"` --
+a real curve through the same real points, never overshooting past a
+value, so the shape reads better without implying data that isn't
+there. `CHART_AXIS_KW` split into `CHART_AXIS_X_KW`/`CHART_AXIS_Y_KW`: the
+y-axis (a real quantity) now carries a light, recessive horizontal grid
+genuinely useful for reading a value off, while the x-axis (almost
+always an ordinal year -- 20+ categories) stays grid-free rather than
+turning into a busy vertical comb. Both axes now render in the app's own
+body font (Source Sans 3) instead of Vega-Lite's default, so a chart
+never reads as a different, less-designed surface bolted onto the page.
+
+**Crop icons on the map (`src/visualize.py`):** the CROP_FAMILIES emoji
+(🌱🌽🌾🥔🥬🍎🍀🌳❔) stay as the safe fallback for plain-text contexts
+(Altair chart labels, Leaflet `GeoJsonTooltip` field values -- a custom
+icon literally cannot render there, only Unicode text does), but every
+place that's real HTML -- the crop-family marker pins on Field
+Explorer's map and both crop-family legends -- now uses `crop_icon_svg()`:
+a hand-drawn Feather/Lucide-style line icon (grass blades, a corn cob,
+a wheat ear, potato-with-eyes, a leafy vegetable, an apple, a
+three-leaf clover, a tree, a dashed "unclassified" circle) in a white
+circle badge coloured to match that family's own map fill -- so the pin
+and the field it sits on always visually agree, and the icon itself
+reads as a real pictogram rather than an emoji.
+
 ## What it found (first pass)
 
 - Land cover, Aug 2025: ~77% dense vegetation (three brightness tiers —
