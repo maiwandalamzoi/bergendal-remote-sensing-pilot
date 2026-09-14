@@ -572,6 +572,41 @@ circle badge coloured to match that family's own map fill -- so the pin
 and the field it sits on always visually agree, and the icon itself
 reads as a real pictogram rather than an emoji.
 
+*(Superseded in part by the v2 redesign below -- three of these nine
+shapes didn't hold up on the real map and were redrawn.)*
+
+### Crop icons v2: fixing the three that read wrong on the actual map
+
+The icon set above was designed and checked in isolation, but three of
+the nine shapes read badly once actually seen in context on the live
+map and legend, at the real 24px badge / 15px icon size:
+
+- **"Nature, landscape & water"** was a plain circle-on-a-stick. On
+  this map that's a direct collision -- pin markers already mark
+  villages, so the icon for a crop family looked like a place marker,
+  not a tree. Redrawn as a tiered conifer silhouette (three stacked
+  triangular tiers + a trunk line) -- a shape a location pin can't be
+  mistaken for.
+- **"Vegetables"** (a concentric leaf/cabbage path) rendered as a
+  striped melon at small size. Redrawn as a single classic leaf
+  outline with a centre vein -- reads clearly even at 15px.
+- **"Cover crops"** (three overlapping teardrop "petals") rendered as
+  a wine glass or slingshot. Redrawn as three overlapping circles in a
+  trefoil (a clover) with a short stem -- distinct from the other
+  eight shapes and unambiguous at a glance.
+
+Grassland, maize, cereals, root crops, fruit, and "other" were kept as
+designed in the first pass -- they already read correctly.
+
+Both redesigns went through the same check before shipping: render
+every candidate at a large legibility-check size *and* the real
+on-map badge size in a disposable local preview page, screenshot it,
+and only replace the shipped icon once it read unambiguously at the
+size it's actually seen at. The on-map marker badge itself was also
+bumped from 22px/13px-icon to 24px/15px-icon (and the maize
+kernel-dot radius from 0.5 to 0.8) -- the size actually tested, not
+the original placeholder size.
+
 ### Overview KPI cards: one consistent structure, real micro-visuals, real units
 
 The five Overview headline cards (`kpi_card()` in `dashboard.py`) were

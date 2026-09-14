@@ -332,16 +332,38 @@ CROP_FAMILIES: dict[str, tuple[str, str, str, str]] = {
 # GeoJsonTooltip field values) where a custom SVG can't render at all --
 # only Unicode text does there, so switching those to SVG would silently
 # break them rather than look nicer.
+# v2 -- redrawn after the first pass read as too abstract to tell apart
+# at a glance (a plain circle-on-a-stick for "nature" was, fairly, read
+# as a map pin -- the exact icon already used for villages elsewhere on
+# this map). Verified by rendering all nine at both a large legibility
+# check size and the real on-map 15px/white-on-colour badge size before
+# committing to any of them (see the git history of this file for the
+# throwaway preview page used to check).
 CROP_ICON_SVGS: dict[str, str] = {
-    "grassland":  '<path d="M6 20 Q6 12 4 6"/><path d="M12 20 Q12 10 12 4"/><path d="M18 20 Q18 12 20 6"/>',
-    "maize":      '<ellipse cx="12" cy="12" rx="5" ry="9"/><line x1="9" y1="5" x2="9" y2="19"/><line x1="12" y1="3" x2="12" y2="21"/><line x1="15" y1="5" x2="15" y2="19"/>',
-    "cereals":    '<path d="M12 21V9"/><path d="M12 9c-2-1-3-3-2-5"/><path d="M12 9c2-1 3-3 2-5"/><path d="M12 13c-2-1-3-3-2-5"/><path d="M12 13c2-1 3-3 2-5"/>',
-    "root":       '<ellipse cx="12" cy="13" rx="7" ry="5.5"/><circle cx="9" cy="11" r=".7"/><circle cx="14" cy="14" r=".7"/><circle cx="11" cy="16" r=".7"/>',
-    "vegetables": '<path d="M12 21c-5-1-8-5-8-10a8 8 0 0 1 16 0c0 5-3 9-8 10z"/><path d="M12 21V6"/>',
-    "fruit":      '<path d="M12 8c-3-3-8-1-8 4 0 5 4 9 8 9s8-4 8-9c0-5-5-7-8-4z"/><path d="M12 8V4"/><path d="M12 5c1-1 2-1 3 0"/>',
-    "cover":      '<path d="M12 12c0-3-3-5-5-3s0 5 5 3z"/><path d="M12 12c0-3 3-5 5-3s0 5-5 3z"/><path d="M12 12c-2 2-2 5 0 7 2-2 2-5 0-7z"/>',
-    "nature":     '<circle cx="12" cy="9" r="6"/><line x1="12" y1="15" x2="12" y2="21"/>',
-    "other":      '<circle cx="12" cy="12" r="8" stroke-dasharray="3,3"/>',
+    "grassland":  '<path d="M4 20c0-5 1-8 0-13"/><path d="M9 20c0-7 2-11 1-16"/>'
+                  '<path d="M15 20c0-7-1-11 1-16"/><path d="M20 20c1-5 0-8 2-13"/>',
+    "maize":      '<path d="M12 3c2.5 0 4 2.5 4 6v9c0 3-1.8 5-4 5s-4-2-4-5V9c0-3.5 1.5-6 4-6z"/>'
+                  '<circle cx="10" cy="8" r=".8" fill="currentColor"/><circle cx="14" cy="8" r=".8" fill="currentColor"/>'
+                  '<circle cx="10" cy="11" r=".8" fill="currentColor"/><circle cx="14" cy="11" r=".8" fill="currentColor"/>'
+                  '<circle cx="10" cy="14" r=".8" fill="currentColor"/><circle cx="14" cy="14" r=".8" fill="currentColor"/>'
+                  '<circle cx="10" cy="17" r=".8" fill="currentColor"/><circle cx="14" cy="17" r=".8" fill="currentColor"/>'
+                  '<path d="M9 5c-2-1-4-1-6 1"/>',  # cob + kernel rows + a husk leaf
+    "cereals":    '<path d="M12 21V7"/><path d="M12 7l-3-3M12 7l3-3"/><path d="M12 10l-3-3M12 10l3-3"/>'
+                  '<path d="M12 13l-3-3M12 13l3-3"/><path d="M12 16l-2.5-2.5M12 16l2.5-2.5"/>',  # wheat-ear fishbone
+    "root":       '<path d="M7 11c-1-3 1-6 4-6s4 1 6 3 2 5 0 7-2 4-5 4-4-1-5-3-1-3 0-5z"/>'
+                  '<circle cx="9.5" cy="10.5" r=".6" fill="currentColor"/><circle cx="14" cy="9.5" r=".6" fill="currentColor"/>'
+                  '<circle cx="10.5" cy="15" r=".6" fill="currentColor"/>',  # irregular tuber + eyes
+    "vegetables": '<path d="M6 20c-2-8 2-15 13-16 1 11-6 15-13 16z"/><path d="M7 19c3-4 6-7 11-13"/>',  # a leaf
+    "fruit":      '<path d="M12 8c-1-2-3-3-5-2-3 1-4 5-2 9 1.5 3 4 5 7 5s5.5-2 7-5c2-4 1-8-2-9-2-1-4 0-5 2z"/>'
+                  '<path d="M12 8V4"/><path d="M12 5c1.2-1.2 2.5-1.2 3.5-.3" stroke-width="1.3"/>',  # apple + stem/leaf
+    "cover":      '<circle cx="9" cy="9" r="3"/><circle cx="15" cy="9" r="3"/><circle cx="12" cy="14" r="3"/>'
+                  '<line x1="12" y1="17" x2="12" y2="21"/>',  # 3-leaflet clover + stem
+    "nature":     '<path d="M12 2 8 8h2l-3 5h2.5L6 19h12l-3.5-6H17l-3-5h2z"/><line x1="12" y1="19" x2="12" y2="22"/>',
+                  # a tiered conifer silhouette -- deliberately NOT a
+                  # circle-on-a-stick, which reads as a map pin
+    "other":      '<circle cx="12" cy="12" r="8" stroke-dasharray="3,3"/>'
+                  '<path d="M9.5 9.5a2.5 2.5 0 0 1 4.6-1.4c.6.9.4 1.7-.4 2.4-.8.7-1.2 1.1-1.2 2" stroke-width="1.6"/>'
+                  '<circle cx="12" cy="16.3" r=".4" fill="currentColor"/>',  # dashed circle + "?"
 }
 
 
@@ -634,11 +656,11 @@ def field_explorer_map(color_by: str = "category", center: list | None = None, l
                 # line-icon inside -- the professional-icon-set
                 # replacement for a bare emoji + white halo.
                 icon=folium.DivIcon(html=(
-                    f'<div style="width:22px;height:22px;border-radius:50%;background:{fam_color};'
+                    f'<div style="width:24px;height:24px;border-radius:50%;background:{fam_color};'
                     f'display:flex;align-items:center;justify-content:center;'
                     f'box-shadow:0 1px 3px rgba(0,0,0,.45),0 0 0 1.5px #fff;">'
-                    f'{crop_icon_svg(r["_family"], size=13, stroke="#fff")}</div>'
-                ), icon_anchor=(11, 11)),
+                    f'{crop_icon_svg(r["_family"], size=15, stroke="#fff")}</div>'
+                ), icon_anchor=(12, 12)),
                 tooltip=f'{r["gewas"]} · {r["area_ha"]:.1f} ha',
             ).add_to(cluster)
 
