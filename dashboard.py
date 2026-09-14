@@ -431,9 +431,15 @@ with st.sidebar:
     st.caption(t("Real satellite, LiDAR & registry data — nothing simulated.",
                  "Echte satelliet-, LiDAR- en registratiedata — niets gesimuleerd."))
     st.markdown(f"**{t('Language', 'Taal')}**")
+    # No default= here: key="lang" already binds this widget to
+    # st.session_state["lang"], which the top of this file sets before
+    # the sidebar ever renders -- passing both is exactly the conflict
+    # Streamlit's own widget-policy check warns about (confirmed live on
+    # Streamlit Community Cloud: "created with a default value but also
+    # had its value set via the Session State API").
     st.segmented_control(
         "Language", options=["en", "nl"], format_func=lambda k: {"en": "English", "nl": "Nederlands"}[k],
-        default=st.session_state["lang"], label_visibility="collapsed", key="lang",
+        label_visibility="collapsed", key="lang",
     )
     st.divider()
     st.markdown(f"**{t('Village / place', 'Plaats / kern')}**")
@@ -1178,15 +1184,24 @@ with tab_overview:
                               f"Ingezoomd op **{selected_village}** (omlijnd) — wijzig in de zijbalk."))
     try:
         st.components.v1.html(get_map_html(LANG, selected_village), height=760)
-    except (FileNotFoundError, RasterioIOError) as exc:
+    except Exception as exc:
         # A deploy that only has data/processed/stats.json (the small,
         # committed subset) and not the full satellite/LiDAR raster
         # archive (data/raw, data/processed/*.tif -- deliberately kept out
         # of git, see .gitignore) can't render the map layers, which read
-        # those rasters directly. Everything else on this page (KPI cards,
-        # every chart, Methodology, Business case) only needs stats.json
-        # and still works -- so this degrades one section instead of
-        # crashing the whole app, and says exactly why.
+        # those rasters/vector files directly. Everything else on this
+        # page (KPI cards, every chart, Methodology, Business case) only
+        # needs stats.json and still works -- so this degrades one
+        # section instead of crashing the whole app, and says exactly why.
+        # Deliberately broad, not the narrower (FileNotFoundError,
+        # RasterioIOError) tried first: a real Streamlit Cloud deploy hit
+        # this exact code path missing brp_parcels.geojson and geopandas'
+        # pyogrio backend raised pyogrio.errors.DataSourceError instead --
+        # a different exception per missing-file *type* (raster vs.
+        # vector), and there's no guarantee it's the last one. This
+        # try block only ever runs code that reads local data files with
+        # no other side effects, so catching broadly here means "any
+        # reason this specific read failed," not "swallow unrelated bugs."
         st.info(t(
             f"The interactive map needs the full satellite/LiDAR raster archive, which this "
             f"deployment doesn't have (only the small `stats.json` summary is included here) — "
@@ -1275,9 +1290,15 @@ with tab_explorer:
                 field_map, width=None, height=720,
                 returned_objects=["last_object_clicked"], key=f"field_map_{color_key}_{LANG}_{selected_village}",
             )
-        except (FileNotFoundError, RasterioIOError) as exc:
-            # Same real limitation as the Overview map above -- this needs
-            # the full raster archive, not just stats.json.
+        except Exception as exc:
+            # Same real limitation as the Overview map above, and the same
+            # deliberately broad except -- confirmed live on Streamlit
+            # Community Cloud: this exact call site, missing
+            # brp_parcels.geojson, raised pyogrio.errors.DataSourceError
+            # (geopandas' vector-file backend), not FileNotFoundError or
+            # RasterioIOError (rasterio's own exception, for the raster
+            # side only) -- so the narrower catch tried first let this
+            # crash straight through instead of degrading gracefully.
             st.info(t(
                 f"Field Explorer's map needs the full satellite/LiDAR raster archive, which this "
                 f"deployment doesn't have — run `python run_pipeline.py` locally for the full map. "
