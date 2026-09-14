@@ -801,3 +801,64 @@ version can actually do reliably.
 - Nothing is validated against ARK Nature's own ground data — the concept
   note's other recommended starting point, alongside Waterschap
   Rivierenland above.
+
+### A real NH3 number, and land cover colours/icons that mean something
+
+Two more direct-feedback fixes:
+
+**NH3 concentration is now real data (`src/fetch_air_quality.py`).**
+The dashboard used to only explain that RIVM's Atlas Leefomgeving WCS has
+no NH3 layer — true, checked again live against its capabilities list —
+but that same investigation found RIVM separately publishes NH3
+*concentration* as an open, no-key-needed grid download: **GCN**
+(Grootschalige Concentratiekaarten Nederland, `data.rivm.nl/data/gcn/`),
+an Esri ASCII grid in RD-New, same 1x1km resolution and OPS-pro modelling
+family as the NO2/PM10/PM2.5 grids already used here. `_fetch_nh3()`
+downloads it, assigns the CRS from the product's own metadata PDF (the
+.asc format carries none itself), clips to the municipal polygon the same
+way the WCS-based pollutants are, and reads both real published years
+(2024, 2025 — GCN's 2030/2035/2040 are policy-scenario projections, not
+history, and are deliberately not fetched as if they were real). Current
+result: mean 5.28 ug/m3 (2025), +0.50 vs 2024. This is **concentration**,
+not **deposition** (mol N/ha/yr, the AERIUS/GDN figure Dutch farm-nitrogen
+permitting actually runs on) — that distinction is carried through the
+card, its ⓘ methodology entry, and the Environment & Energy tab's own
+explanatory box, not glossed over now that a real NH3 number exists.
+
+**Land-cover colours and icons now mean something, everywhere they're
+shown (`src/visualize.py`, `dashboard.py`).** `LANDCOVER_COLORS` gave
+"Built-up / bare" and "Grass / farmland" almost the same tan/brown hue —
+hard to tell apart on the map or in a bar chart. Redrawn so each class
+comes from its own colour family (water=blue, built-up=neutral grey,
+farmland=gold, the three canopy-brightness tiers=this app's own forest
+green, light to dark). Each class also gets a small hand-drawn line icon
+(`landcover_icon_svg()` — a building, grass blades, a tree, a wave, a
+leaf; the same Feather/Lucide-style single-stroke convention as the crop
+icons, not a photo or a generic AI-generated image) shown next to its
+colour swatch on both the interactive map's own legend and a new
+`landcover_class_chart()` Altair chart that replaced a plain
+default-blue `st.bar_chart` on the Overview tab. A `LANDCOVER_LABELS_NL`
+lookup translates the fixed English cluster names `landcover_ml.py`
+produces (that stage labels clusters from their own spectral signature,
+not UI text, so it has no bilingual convention of its own) everywhere
+these names are displayed, so the legend and the chart read in Dutch
+when the page does. `LANDCOVER_TREND_COLORS` (the separate, coarser
+4-category year-over-year trend) was also re-toned from bright
+"default chart" hues to the same muted palette family.
+
+### Business case: NH3 reframed, and the roadmap now includes ML and drone data
+
+The Business case tab's nitrogen-permitting pitch referenced NH3/AERIUS
+as entirely unavailable; updated to reflect what's now true — real NH3
+*concentration* is delivered today, *deposition* remains the one
+open item, still requiring a data-sharing conversation with RIVM/AERIUS.
+The roadmap ("gaps that are also the roadmap") gained two genuinely new,
+honestly-scoped items: higher-resolution height/canopy data via a
+commissioned drone (UAV LiDAR/photogrammetry) survey — AHN is real
+LiDAR but nationally flown on a multi-year cycle, and no such
+commissioned dataset exists for this municipality today, stated as a
+future option rather than data this pipeline already has; and ML beyond
+the current (real, non-black-box) OLS trend and Markov rotation models —
+a per-field NDVI-anomaly early-stress detector and a land-cover
+classifier trained on this pipeline's own multi-year KMeans output plus
+BRP labels, neither built yet.

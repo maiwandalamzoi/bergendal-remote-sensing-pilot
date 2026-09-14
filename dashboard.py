@@ -42,7 +42,8 @@ COLOR_SELECTED = "#4a3aa7"  # Year Explorer highlight ring -- distinct from the 
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 from statsutil import load_stats
-from visualize import make_map, field_explorer_map, FIELD_COLOR_MODES, CROP_FAMILIES, classify_crop
+from visualize import (make_map, field_explorer_map, FIELD_COLOR_MODES, CROP_FAMILIES, classify_crop,
+                        LANDCOVER_COLORS, landcover_label, landcover_icon_svg)
 from crop_rotation import normalize_crop
 from methodology import ENTRIES as METHOD_ENTRIES
 
@@ -650,11 +651,21 @@ def correlation_chart(correlations: dict) -> alt.Chart:
     return alt.layer(chart, zero_line).configure_view(strokeWidth=0).configure_axisX(**CHART_AXIS_X_KW).configure_axisY(**CHART_AXIS_Y_KW)
 
 
+# Toned down from a first pass (#008300/#eda100/#e34948/#2a78d6 -- bright,
+# "default chart" hues that clashed with the rest of this app's muted
+# earth-tone palette) to the same colour families as LANDCOVER_COLORS in
+# visualize.py (KMeans's own 6-class breakdown): forest green anchored on
+# this app's own --forest, farmland gold matching the KMeans farmland
+# colour, built-up a muted terracotta (still clearly its own hue, not
+# reused from anything else on this chart), water this app's own --river.
+# Kept as its own dict (not literally LANDCOVER_COLORS) because this is a
+# different, coarser 4-category breakdown -- the year-over-year trend --
+# not the raw 6-cluster KMeans output the other chart shows.
 LANDCOVER_TREND_COLORS = {
-    "Forest / dense vegetation": "#008300",
-    "Agriculture": "#eda100",
-    "Built-up": "#e34948",
-    "Water": "#2a78d6",
+    "Forest / dense vegetation": "#2E5943",
+    "Agriculture": "#C9A227",
+    "Built-up": "#B5524B",
+    "Water": "#3B6E8A",
 }
 
 
@@ -800,6 +811,34 @@ def village_bar_chart(villages: list, value_key: str, title: str, color: str, fm
         y=alt.Y("village:N", title=None, sort=None),
         tooltip=[alt.Tooltip("village:N", title=t("Village", "Kern")), alt.Tooltip("value:Q", title=title, format=fmt)],
     ).properties(height=22 * len(df) + 20)
+    return chart.configure_view(strokeWidth=0).configure_axisX(**CHART_AXIS_X_KW).configure_axisY(**CHART_AXIS_Y_KW)
+
+
+def landcover_class_chart(landcover: dict) -> alt.Chart:
+    """Each KMeans land-cover class in its own real colour (LANDCOVER_COLORS,
+    shared with the interactive map's own legend so a bar here and that
+    layer's fill on the map always agree) and its translated label --
+    replacing a plain default-blue st.bar_chart that carried none of that.
+    Colour is doubly-redundant with the y-axis identity here (each class
+    already has its own row/label) -- a real design choice, not an
+    oversight: no separate Altair legend is drawn, since the icon+colour+
+    label row rendered under this chart (see call site) already serves
+    that purpose without a second, cluttered legend saying the same thing."""
+    names = list(landcover.keys())
+    df = pd.DataFrame({
+        "class_en": names,
+        "class_label": [landcover_label(n, LANG) for n in names],
+        "pct": list(landcover.values()),
+    }).sort_values("pct", ascending=True)
+    chart = alt.Chart(df).mark_bar(cornerRadiusEnd=3, height=18).encode(
+        x=alt.X("pct:Q", title=t("% of clear ground", "% onbewolkte grond")),
+        y=alt.Y("class_label:N", title=None, sort=None),
+        color=alt.Color("class_en:N",
+                         scale=alt.Scale(domain=list(LANDCOVER_COLORS.keys()), range=list(LANDCOVER_COLORS.values())),
+                         legend=None),
+        tooltip=[alt.Tooltip("class_label:N", title=t("Class", "Klasse")),
+                 alt.Tooltip("pct:Q", title=t("% of clear ground", "% onbewolkte grond"), format=".1f")],
+    ).properties(height=26 * len(df) + 20)
     return chart.configure_view(strokeWidth=0).configure_axisX(**CHART_AXIS_X_KW).configure_axisY(**CHART_AXIS_Y_KW)
 
 
@@ -1070,9 +1109,17 @@ with tab_overview:
     st.divider()
     st.subheader(t("Land cover (KMeans, satellite-derived)", "Landgebruik (KMeans, satellietafgeleid)"))
     if landcover:
-        df = pd.DataFrame({"class": list(landcover.keys()), t("% of clear ground", "% onbewolkte grond"): list(landcover.values())})
-        df = df.sort_values(df.columns[1], ascending=True)
-        st.bar_chart(df.set_index("class"), horizontal=True)
+        st.altair_chart(landcover_class_chart(landcover), use_container_width=True)
+        _lc_legend_rows = "".join(
+            f'<span style="display:inline-flex;align-items:center;gap:5px;margin:2px 12px 2px 0;">'
+            f'<span style="width:16px;height:16px;border-radius:50%;background:{LANDCOVER_COLORS.get(n,"#999")};'
+            f'display:inline-flex;align-items:center;justify-content:center;flex:none;">'
+            f'{landcover_icon_svg(n, size=10, stroke="#fff")}</span>'
+            f'<span style="font-size:12px;color:var(--ink-2);">{landcover_label(n, LANG)}</span></span>'
+            for n in landcover.keys()
+        )
+        st.markdown(f'<div style="display:flex;flex-wrap:wrap;margin-top:2px;">{_lc_legend_rows}</div>',
+                    unsafe_allow_html=True)
     st.caption(t(
         f"Mean NDVI Aug 2025: {opt.get('mean_ndvi', 0):.3f} ({change.get('mean_delta', 0):+.3f} vs Aug 2024). "
         f"Elevation (AHN): {ahn.get('elevation_min_m', 0):.0f}–{ahn.get('elevation_max_m', 0):.0f} m NAP.",
@@ -2064,8 +2111,8 @@ with tab_forecast:
 # ======================================================================
 with tab_env:
     st.subheader(t("Air quality — RIVM, 2024", "Luchtkwaliteit — RIVM, 2024"))
-    no2, pm10, pm25 = air.get("NO2", {}), air.get("PM10", {}), air.get("PM25", {})
-    c1, c2, c3 = st.columns(3)
+    no2, pm10, pm25, nh3 = air.get("NO2", {}), air.get("PM10", {}), air.get("PM25", {}), air.get("NH3", {})
+    c1, c2, c3, c4 = st.columns(4)
     c1.metric("NO₂", f"{no2.get('mean_ug_m3', 0)} µg/m³",
               delta=f"WHO: {no2.get('who_guideline_ug_m3', 0)} · {no2.get('pct_area_over_who_guideline', 0)}% {t('over', 'boven')}",
               delta_color="off")
@@ -2075,13 +2122,30 @@ with tab_env:
     c3.metric("PM₂.₅", f"{pm25.get('mean_ug_m3', 0)} µg/m³",
               delta=f"WHO: {pm25.get('who_guideline_ug_m3', 0)} · {pm25.get('pct_area_over_who_guideline', 0)}% {t('over', 'boven')}",
               delta_color="off")
+    if nh3:
+        _nh3_prior = (nh3.get("prior_years") or {})
+        _nh3_prior_year, _nh3_prior_entry = next(iter(_nh3_prior.items()), (None, None))
+        _nh3_prior_val = _nh3_prior_entry.get("mean_ug_m3") if _nh3_prior_entry else None
+        _nh3_delta = (f"{_nh3_prior_year}→{nh3.get('year')}: {nh3['mean_ug_m3'] - _nh3_prior_val:+.2f} µg/m³"
+                      if _nh3_prior_val is not None else t("no WHO guideline for NH₃", "geen WHO-richtlijn voor NH₃"))
+        c4.metric("NH₃", f"{nh3.get('mean_ug_m3', 0)} µg/m³", delta=_nh3_delta, delta_color="off")
+        _bc1, _bc2 = st.columns([10, 1])
+        with _bc2:
+            method_popover("nh3")
+    else:
+        c4.metric("NH₃", "n/a")
     st.caption(t(
         "Modelled 1×1 km RIVM national air-quality grids (the same ones used in official NSL reporting), "
         "clipped to the municipal boundary — not raw satellite pixels, but the authoritative reference "
-        "any satellite-based air product would be validated against.",
+        "any satellite-based air product would be validated against. NH₃ is a separate RIVM product (the "
+        "GCN concentration download, not the Atlas Leefomgeving WCS the other three come from) — see the "
+        "ⓘ next to it for what that means for how much to trust it.",
         "Gemodelleerde 1×1 km RIVM-luchtkwaliteitsrasters (dezelfde die in de officiële NSL-rapportage "
         "worden gebruikt), uitgesneden op de gemeentegrens — geen ruwe satellietpixels, maar de "
-        "gezaghebbende referentie waaraan elk satellietgebaseerd luchtproduct gevalideerd zou worden.",
+        "gezaghebbende referentie waaraan elk satellietgebaseerd luchtproduct gevalideerd zou worden. NH₃ "
+        "komt uit een apart RIVM-product (de GCN-concentratiedownload, niet de Atlas Leefomgeving-WCS "
+        "waar de andere drie vandaan komen) — zie de ⓘ ernaast voor wat dat betekent voor de "
+        "betrouwbaarheid.",
     ))
 
     if air_quality_trend.get("series", {}).get("NO2", {}).get("years"):
@@ -2112,42 +2176,45 @@ with tab_env:
             "All four fell over this period — real, documented Dutch/EU air-quality improvement (cleaner "
             "vehicles, stricter emission standards), not a pipeline artifact. The 2020 dip (ringed) is the "
             "documented COVID-19 lockdown traffic drop, not noise — it recovers most of the way in 2021, "
-            "consistent with traffic (not industry) driving it. **What this still can't show:** CO₂/GHG "
-            "and NH₃/nitrogen deposition, the two figures Dutch climate and farm-nitrogen policy actually "
-            "runs on. Both checked directly, not assumed absent: municipal CO₂ (Klimaatmonitor) sits "
-            "behind an authenticated OData API (confirmed: HTTP 401 \"Guest user group not found\"); "
-            "NH₃/deposition (RIVM's GDN/AERIUS) has no public WCS/WFS at all under any of the endpoint "
-            "patterns this pipeline's other RIVM/PDOK services use. Real gaps, not silent omissions.",
+            "consistent with traffic (not industry) driving it. **What this still can't show:** CO₂/GHG, "
+            "and a multi-year NH₃ trend the way there is for these four — RIVM's GCN NH₃ concentration "
+            "product (added below) only publishes two real years, 2024 and 2025, not a historical back-"
+            "series. Checked directly, not assumed absent: municipal CO₂ (Klimaatmonitor) sits behind an "
+            "authenticated OData API (confirmed: HTTP 401 \"Guest user group not found\").",
             "Alle vier daalden in deze periode — een echte, gedocumenteerde Nederlandse/Europese "
             "luchtkwaliteitsverbetering (schonere voertuigen, strengere emissie-eisen), geen "
             "pipeline-artefact. De dip van 2020 (omcirkeld) is de gedocumenteerde COVID-19-"
             "lockdownverkeersdaling, geen ruis — herstelt grotendeels in 2021, consistent met verkeer "
             "(niet industrie) als aandrijver. **Wat dit nog steeds niet kan laten zien:** CO₂/"
-            "broeikasgassen en NH₃/stikstofdepositie, de twee cijfers waar Nederlands klimaat- en "
-            "stikstofbeleid voor de landbouw daadwerkelijk op draait. Beide rechtstreeks gecontroleerd, "
-            "niet aangenomen als afwezig: gemeentelijke CO₂ (Klimaatmonitor) zit achter een "
-            "geauthenticeerde OData-API (bevestigd: HTTP 401 \"Guest user group not found\"); "
-            "NH₃/depositie (RIVM's GDN/AERIUS) heeft helemaal geen publieke WCS/WFS onder welk "
-            "endpoint-patroon dan ook dat de andere RIVM/PDOK-diensten van deze pipeline gebruiken. "
-            "Echte hiaten, geen stille omissies.",
+            "broeikasgassen, en een meerjarige NH₃-trend zoals bij deze vier — RIVM's GCN-NH₃-"
+            "concentratieproduct (hieronder toegevoegd) publiceert maar twee echte jaren, 2024 en 2025, "
+            "geen historische reeks. Rechtstreeks gecontroleerd, niet aangenomen als afwezig: "
+            "gemeentelijke CO₂ (Klimaatmonitor) zit achter een geauthenticeerde OData-API (bevestigd: "
+            "HTTP 401 \"Guest user group not found\").",
         ))
 
-    st.warning(t(
-        "**NH₃ / nitrogen deposition — not available here, and that's the actual gap worth closing.** "
-        "Ammonia and nitrogen deposition are the numbers Dutch farm nitrogen permitting runs on, not NO₂. "
-        "RIVM's Atlas Leefomgeving (checked directly above) has no queryable NH₃ layer — that figure lives "
-        "in RIVM's separate GDN/AERIUS product, distributed as an annual grid download rather than a live "
-        "service. **This is the single highest-value data gap for a Berg en Dal product aimed at farmers "
-        "or the gemeente's own permitting process** — closing it means a data-sharing conversation with "
-        "RIVM/AERIUS, not more satellite fetching.",
-        "**NH₃ / stikstofdepositie — hier niet beschikbaar, en dat is het hiaat dat het écht waard is om "
-        "te dichten.** Ammoniak en stikstofdepositie zijn de cijfers waar de Nederlandse "
-        "stikstofvergunningverlening op draait, niet NO₂. RIVM's Atlas Leefomgeving (hierboven direct "
-        "gecontroleerd) heeft geen bevraagbare NH₃-laag — dat cijfer zit in RIVM's aparte GDN/AERIUS-"
-        "product, verspreid als jaarlijkse rasterdownload in plaats van een live dienst. **Dit is het "
-        "waardevolste datahiaat voor een Berg en Dal-product gericht op boeren of het "
-        "vergunningsproces van de gemeente zelf** — het dichten ervan vraagt om een gesprek over "
-        "datadeling met RIVM/AERIUS, geen extra satellietdata.",
+    st.info(t(
+        "**NH₃ concentration is now real, measured data above — but it is not the deposition figure farm "
+        "nitrogen permitting actually runs on.** RIVM's Atlas Leefomgeving WCS (used for NO₂/PM₁₀/PM₂.₅ "
+        "above) genuinely has no NH₃ layer, confirmed again directly against its live capabilities list — "
+        "but RIVM separately publishes NH₃ *concentration* (µg/m³) as an open, no-key-needed grid download "
+        "(GCN, data.rivm.nl/data/gcn/), which is what the NH₃ card above uses: real 2024/2025 values for "
+        "this exact municipality, not a placeholder. **What's still genuinely missing:** nitrogen "
+        "*deposition* (mol N/ha/yr on nature areas) — a different quantity from concentration, published "
+        "separately via RIVM's AERIUS/GDN product (aerius.nl) rather than this download, and still not "
+        "fetched here. Concentration is a real, useful proxy for where ammonia in the air is elevated, but "
+        "cannot substitute for an actual AERIUS calculation in a permitting decision.",
+        "**NH₃-concentratie is hierboven nu echte, gemeten data — maar dat is niet het depositiecijfer "
+        "waar stikstofvergunningverlening voor de landbouw op draait.** RIVM's Atlas Leefomgeving-WCS "
+        "(gebruikt voor NO₂/PM₁₀/PM₂.₅ hierboven) heeft echt geen NH₃-laag, opnieuw rechtstreeks "
+        "gecontroleerd tegen de live capabilities-lijst — maar RIVM publiceert NH₃-*concentratie* (µg/m³) "
+        "apart als een open rasterdownload zonder sleutel (GCN, data.rivm.nl/data/gcn/), wat de "
+        "NH₃-kaart hierboven gebruikt: echte 2024/2025-waarden voor precies deze gemeente, geen "
+        "plaatshouder. **Wat nog echt ontbreekt:** stikstof*depositie* (mol N/ha/jr op natuurgebieden) — "
+        "een andere grootheid dan concentratie, apart gepubliceerd via RIVM's AERIUS/GDN-product "
+        "(aerius.nl) in plaats van deze download, en nog niet opgehaald. Concentratie is een echte, "
+        "bruikbare indicatie van waar ammoniak in de lucht verhoogd is, maar kan geen echte "
+        "AERIUS-berekening in een vergunningsbeslissing vervangen.",
     ))
 
     st.divider()
@@ -2334,8 +2401,9 @@ with tab_business:
         "housing-growth tracking against the 76 new homes/yr baseline | Annual data contract or embedded "
         "dashboard, refreshed on each new cloud-free satellite pass |\n"
         "| **Individual farmers / LTO members** | Field-level NDVI stress alerts on their own registered "
-        "BRP parcels; early groundwork for nitrogen-permit reporting once NH₃/AERIUS is wired in | "
-        "Per-farm subscription, priced per registered hectare |\n"
+        "BRP parcels; real NH₃ concentration by area (Environment & Energy tab) as a first ammonia "
+        "signal, with an AERIUS-grade deposition number as the next step once that data-sharing "
+        "conversation with RIVM happens | Per-farm subscription, priced per registered hectare |\n"
         "| **Waterschap Rivierenland** | The change-detection flood-extent series (Water tab) as a "
         "standing product, validated against their own gauge/extent data | Paid pilot to close that "
         "validation gap, then a standing monitoring contract |\n"
@@ -2347,8 +2415,10 @@ with tab_business:
         "volgen van woningbouwgroei t.o.v. de basislijn van 76 nieuwe woningen/jr | Jaarlijks "
         "datacontract of ingebed dashboard, ververst bij elke nieuwe wolkenvrije satellietpassage |\n"
         "| **Individuele boeren / LTO-leden** | NDVI-stressmeldingen op perceelniveau voor hun eigen "
-        "geregistreerde BRP-percelen; vroege basis voor stikstofvergunning-rapportage zodra NH₃/AERIUS "
-        "is aangesloten | Abonnement per bedrijf, geprijsd per geregistreerde hectare |\n"
+        "geregistreerde BRP-percelen; echte NH₃-concentratie per gebied (tabblad Milieu & Energie) als "
+        "eerste ammoniaksignaal, met een AERIUS-waardig depositiecijfer als volgende stap zodra dat "
+        "gesprek over datadeling met RIVM plaatsvindt | Abonnement per bedrijf, geprijsd per "
+        "geregistreerde hectare |\n"
         "| **Waterschap Rivierenland** | De verandering-detectie-overstromingsreeks (tabblad Water) als "
         "vast product, gevalideerd tegen hun eigen peilstok-/oppervlaktedata | Betaalde pilot om dat "
         "validatiehiaat te dichten, daarna een vast monitoringcontract |\n"
@@ -2356,27 +2426,63 @@ with tab_business:
         "rapport in plaats van eenmalig | Jaarlijks ecologisch monitoringrapport |\n",
     ))
 
-    st.markdown("#### " + t("The three gaps that are also the roadmap", "De drie hiaten die ook de routekaart zijn"))
+    st.markdown("#### " + t("The gaps that are also the roadmap", "De hiaten die ook de routekaart zijn"))
     st.markdown(t(
-        "1. **NH₃ / nitrogen deposition via RIVM's AERIUS/GDN product** — the single highest-value gap. "
-        "This is what actually unlocks a farmer-facing nitrogen-permit product, which is the biggest "
-        "commercial opportunity here given the scale of the Dutch nitrogen crisis.\n"
+        "1. **Nitrogen deposition (mol N/ha/yr) via RIVM's AERIUS/GDN product.** NH₃ *concentration* "
+        "(µg/m³) is real data on the Environment & Energy tab now — RIVM's open GCN download, no "
+        "conversation needed. *Deposition on nature areas*, the number farm-nitrogen permitting actually "
+        "runs on, is a different RIVM product (aerius.nl) not available as an open download the way "
+        "concentration is — closing this gap means a data-sharing conversation with RIVM/AERIUS, and it "
+        "is what actually unlocks a farmer-facing nitrogen-permit product, the biggest commercial "
+        "opportunity here given the scale of the Dutch nitrogen crisis.\n"
         "2. **Grid capacity via Liander/Netbeheer Nederland** — needed before any pitch involving new "
         "solar or business connections; currently a manual postcode lookup, not an integrated data feed.\n"
         "3. **Ground-truth validation of the flood-extent series against Waterschap Rivierenland's own "
         "gauge/extent data** — the multi-date change-detection method (Water tab) replaced the old "
         "single-snapshot fixed-threshold read; what's left is checking it against someone else's "
-        "independent measurement before pitching it as a trusted product.",
-        "1. **NH₃ / stikstofdepositie via RIVM's AERIUS/GDN-product** — het waardevolste hiaat. Dit is "
-        "wat een stikstofvergunning-product voor boeren daadwerkelijk mogelijk maakt, gezien de omvang "
-        "van de Nederlandse stikstofcrisis de grootste commerciële kans hier.\n"
+        "independent measurement before pitching it as a trusted product.\n"
+        "4. **Higher-resolution height/canopy data beyond AHN's ~5-year national LiDAR refresh cycle.** "
+        "AHN (used for elevation/canopy height here) is real LiDAR, but nationally flown, so any single "
+        "municipality only gets a new pass every few years. A drone (UAV LiDAR/photogrammetry) survey, "
+        "commissioned specifically for Berg en Dal, would give centimetre-scale, any-time-of-year detail "
+        "AHN can't — e.g. tracking individual-tree canopy loss within a season, not just between national "
+        "flights. No such commissioned drone dataset exists for this municipality today; this is a "
+        "genuine future option, not something this pipeline currently has access to.\n"
+        "5. **ML beyond the current trend/rotation models.** The Forecast tab already runs a real OLS "
+        "trend projection and a Markov crop-rotation model on this pipeline's own historical data — both "
+        "genuine statistics, not black boxes. Natural next steps, none built yet: a proper time-series "
+        "model (e.g. per-field NDVI anomaly detection flagging fields that deviate from their own "
+        "multi-year normal, useful as an early-stress alert) and a land-cover classifier trained on "
+        "multiple years of this pipeline's own KMeans output plus BRP labels, rather than KMeans alone.",
+        "1. **Stikstofdepositie (mol N/ha/jr) via RIVM's AERIUS/GDN-product.** NH₃-*concentratie* "
+        "(µg/m³) is nu echte data op het tabblad Milieu & Energie — RIVM's open GCN-download, geen "
+        "gesprek nodig. *Depositie op natuurgebieden*, het cijfer waar stikstofvergunningverlening voor "
+        "de landbouw daadwerkelijk op draait, is een ander RIVM-product (aerius.nl) dat niet als open "
+        "download beschikbaar is zoals concentratie — dit hiaat dichten vraagt om een gesprek over "
+        "datadeling met RIVM/AERIUS, en is wat een stikstofvergunning-product voor boeren daadwerkelijk "
+        "mogelijk maakt, gezien de omvang van de Nederlandse stikstofcrisis de grootste commerciële kans "
+        "hier.\n"
         "2. **Netcapaciteit via Liander/Netbeheer Nederland** — nodig vóór elke pitch met nieuwe "
         "zonne- of bedrijfsaansluitingen; nu een handmatige postcode-opzoeking, geen geïntegreerde "
         "datafeed.\n"
         "3. **Validatie van de overstromingsreeks tegen de eigen peilstok-/oppervlaktedata van "
         "Waterschap Rivierenland** — de verandering-detectiemethode met meerdere data (tabblad Water) "
         "verving de oude momentopname met vaste drempel; wat rest is dit toetsen aan een onafhankelijke "
-        "meting van iemand anders voordat het als vertrouwd product wordt gepitcht.",
+        "meting van iemand anders voordat het als vertrouwd product wordt gepitcht.\n"
+        "4. **Hogere-resolutie hoogte-/bladerdakdata voorbij AHN's ~5-jaarlijkse landelijke LiDAR-cyclus.** "
+        "AHN (gebruikt voor hoogte/bladerdak hier) is echte LiDAR, maar landelijk gevlogen, dus elke "
+        "gemeente krijgt maar om de paar jaar een nieuwe opname. Een drone-opname (UAV-LiDAR/"
+        "fotogrammetrie), speciaal voor Berg en Dal opgezet, zou centimeterschaal-detail geven dat AHN "
+        "niet kan — bijv. bladerdakverlies per individuele boom binnen één seizoen volgen, niet alleen "
+        "tussen landelijke vluchten. Zo'n opdracht-drone-dataset bestaat vandaag niet voor deze gemeente; "
+        "dit is een echte toekomstoptie, geen data die deze pipeline nu al heeft.\n"
+        "5. **ML voorbij de huidige trend-/rotatiemodellen.** Het tabblad Voorspelling draait al een "
+        "echte OLS-trendprojectie en een Markov-gewasrotatiemodel op de eigen historische data van deze "
+        "pipeline — beide echte statistiek, geen black box. Logische volgende stappen, nog niet gebouwd: "
+        "een echt tijdreeksmodel (bijv. NDVI-afwijkingsdetectie per perceel dat percelen markeert die "
+        "afwijken van hun eigen meerjarige normaal, bruikbaar als vroege-stressmelding) en een "
+        "landgebruiksclassifier getraind op meerdere jaren van de eigen KMeans-output van deze pipeline "
+        "plus BRP-labels, in plaats van KMeans alleen.",
     ))
 
     st.caption(t(

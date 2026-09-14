@@ -357,3 +357,29 @@ Every number below reflects this repository's state when generated; see each ent
 **Code:** `src/fetch_air_quality.py`
 
 ---
+
+## Air quality — NH3 (ammonia) concentration
+
+**Measures:** Modelled annual-mean ammonia concentration at ground level -- not nitrogen deposition.
+
+**Source:** RIVM GCN (Grootschalige Concentratiekaarten Nederland), file conc_NH3_<year>.zip, data.rivm.nl/data/gcn/ -- a real, open, directly downloadable grid, distinct from the RIVM Atlas Leefomgeving WCS used for NO2/PM10/PM2.5 above, which was checked directly and confirmed to carry no NH3 or deposition coverage at all.
+
+**Date/period:** 2025 (most recent real year); 2024 kept alongside it for a one-year delta. RIVM's GCN only publishes two real (non-projected) years for NH3 -- 2024 and 2025 -- plus policy-scenario projections for 2030/2035/2040, which are deliberately not fetched here as if they were real historical data.
+
+**Resolution:** 1x1 km.
+
+**Processing:**
+- Direct HTTP download of conc_NH3_<year>.zip (no key, no WCS/WFS -- a static file), extracting the Esri ASCII grid (.asc) inside.
+- The .asc format carries no CRS of its own; RIVM's own metadata PDF for this product states RD-New (EPSG:28992) explicitly, matching every other RIVM/PDOK layer in this pipeline, so the CRS is assigned from the product's documentation, not guessed or left unset.
+- Re-written as a GeoTIFF with that CRS assigned, then clipped to the exact municipal polygon (rasterio.mask), same approach as the WCS-based NO2/PM10/PM2.5 fetch.
+- mean/min/max computed over valid pixels (value != nodata, sanity-bounded -100 < value < 1000); no WHO or EU guideline exists for NH3 the way it does for NO2/PM10/PM2.5, so no '% over guideline' figure is computed or shown for it.
+- Current result: mean 5.28 ug/m3 (2025), 4.78 ug/m3 (2024), range roughly 3.6-9.5 ug/m3 across the municipality -- the spread reflects real local ammonia sources (livestock farming), not noise.
+
+**Limitations:**
+- This is ammonia *concentration in air* (ug/m3), not nitrogen *deposition on nature areas* (mol N/ha/yr) -- a different quantity that Dutch farm-nitrogen permitting actually runs on. Deposition is published separately via RIVM's AERIUS/GDN product (aerius.nl), which has no open download equivalent to this one and is still not fetched by this pipeline.
+- RIVM's own stated uncertainty for this product is sigma = 20-25% -- wider than a typical sensor measurement, since it is the output of an atmospheric dispersion model (OPS-pro 5.3.1.0) calibrated against real LML/MAN station measurements, not a direct reading at every point.
+- Only two real years exist (2024, 2025), so no multi-year trend can be shown for NH3 the way there is for NO2/PM10/PM2.5/EC elsewhere on this tab.
+
+**Code:** `src/fetch_air_quality.py (function _fetch_nh3)`
+
+---

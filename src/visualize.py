@@ -25,16 +25,78 @@ PROC_DIR = Path(__file__).resolve().parent.parent / "data" / "processed"
 OUT_DIR = Path(__file__).resolve().parent.parent / "outputs"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
+# Redrawn from a first pass where "Built-up / bare" (#B4A38A) and "Grass /
+# farmland" (#A2712F) sat too close in hue -- both tan/brown -- to read
+# apart at a glance on the map or in a bar chart. Now each class gets a
+# colour from its own distinct family, matching the convention a person
+# already expects from any land-cover map (water=blue, built-up=neutral
+# grey/stone -- never green or brown, which both already mean vegetation
+# here -- vegetation=green, farmland=gold/tan): water stays this app's own
+# --river blue; built-up moves to a clearly neutral warm grey; farmland
+# moves to a real gold, distinct from both grey and the greens; the three
+# canopy tiers use this app's own --forest green as their middle anchor,
+# darker and lighter either side; sparse/transitional gets a pale sage
+# that reads as "thin vegetation," not as farmland or bare ground.
 LANDCOVER_COLORS = {
     "Water": "#3B6E8A",
+    "Built-up / bare": "#8D8879",
+    "Grass / farmland": "#C9A227",
     "Dense vegetation, dark canopy": "#12331F",
-    "Dense vegetation, mid canopy": "#1E4D34",
-    "Dense vegetation, bright canopy": "#3E7A4F",
-    "Dense vegetation (forest)": "#1E4D34",
-    "Grass / farmland": "#A2712F",
-    "Built-up / bare": "#B4A38A",
-    "Sparse / transitional": "#D8CBAE",
+    "Dense vegetation, mid canopy": "#2E5943",
+    "Dense vegetation, bright canopy": "#5B8F6E",
+    "Dense vegetation (forest)": "#2E5943",
+    "Sparse / transitional": "#B7C9A8",
 }
+
+# Dutch labels for the fixed English cluster names landcover_ml.py's own
+# _label_clusters() produces (that pipeline stage has no bilingual
+# convention -- it labels clusters from their own spectral signature, not
+# UI text) -- kept here, next to the colours, as the one bilingual lookup
+# every legend/chart that shows these names reads from, so a label and its
+# translation can never drift apart across the map legend and the bar
+# chart on the Overview tab.
+LANDCOVER_LABELS_NL = {
+    "Water": "Water",
+    "Built-up / bare": "Bebouwd / kaal",
+    "Grass / farmland": "Grasland / landbouw",
+    "Dense vegetation, dark canopy": "Dicht groen, donker bladerdak",
+    "Dense vegetation, mid canopy": "Dicht groen, middelhoog bladerdak",
+    "Dense vegetation, bright canopy": "Dicht groen, licht bladerdak",
+    "Dense vegetation (forest)": "Dicht groen (bos)",
+    "Sparse / transitional": "IJl / overgangsgebied",
+}
+
+
+def landcover_label(name: str, lang: str = "en") -> str:
+    return name if lang == "en" else LANDCOVER_LABELS_NL.get(name, name)
+
+
+# Same hand-drawn Feather/Lucide-style line-icon convention as
+# CROP_ICON_SVGS below -- plain inline SVG paths, no icon font/CDN/photo,
+# each shape checked for what it actually reads as (a tree, not a shrub; a
+# building, not a generic square) rather than picked for looking busy.
+# "Dense vegetation" reuses one tree glyph across all three canopy tiers
+# on purpose -- the tiers are the same *kind* of cover at different
+# brightness, which the colour ramp already carries; three different tree
+# shapes would imply a difference in kind that isn't there.
+LANDCOVER_ICON_SVGS: dict[str, str] = {
+    "Water": '<path d="M2 14c2-3 4-3 6 0s4 3 6 0 4-3 6 0"/><path d="M2 18c2-3 4-3 6 0s4 3 6 0 4-3 6 0"/>',
+    "Built-up / bare": '<path d="M4 21V9l5-4 5 4v12"/><path d="M14 21v-8h6v8"/><line x1="2" y1="21" x2="22" y2="21"/>'
+                        '<line x1="7" y1="13" x2="7" y2="13.01"/><line x1="7" y1="17" x2="7" y2="17.01"/>',
+    "Grass / farmland": '<path d="M4 20c0-5 1-8 0-13"/><path d="M9 20c0-7 2-11 1-16"/>'
+                         '<path d="M15 20c0-7-1-11 1-16"/><path d="M20 20c1-5 0-8 2-13"/>',
+    "Dense vegetation, dark canopy": '<path d="M12 2 8 8h2l-3 5h2.5L6 19h12l-3.5-6H17l-3-5h2z"/><line x1="12" y1="19" x2="12" y2="22"/>',
+    "Dense vegetation, mid canopy": '<path d="M12 2 8 8h2l-3 5h2.5L6 19h12l-3.5-6H17l-3-5h2z"/><line x1="12" y1="19" x2="12" y2="22"/>',
+    "Dense vegetation, bright canopy": '<path d="M12 2 8 8h2l-3 5h2.5L6 19h12l-3.5-6H17l-3-5h2z"/><line x1="12" y1="19" x2="12" y2="22"/>',
+    "Dense vegetation (forest)": '<path d="M12 2 8 8h2l-3 5h2.5L6 19h12l-3.5-6H17l-3-5h2z"/><line x1="12" y1="19" x2="12" y2="22"/>',
+    "Sparse / transitional": '<path d="M6 20c-2-8 2-15 13-16 1 11-6 15-13 16z"/><path d="M7 19c3-4 6-7 11-13"/>',
+}
+
+
+def landcover_icon_svg(name: str, size: int = 14, stroke: str = "currentColor") -> str:
+    body = LANDCOVER_ICON_SVGS.get(name, "")
+    return (f'<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="{stroke}" '
+            f'stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">{body}</svg>')
 
 
 def _bounds_wgs84(profile) -> list:
@@ -1044,9 +1106,11 @@ def make_map(label_new: str = "summer_2025", label_old: str = "summer_2024", lan
     GroupedLayerControl(groups=groups, exclusive_groups=False, collapsed=False).add_to(m)
 
     legend_rows = "".join(
-        f'<div style="display:flex;align-items:center;gap:6px;margin:2px 0;">'
-        f'<span style="width:12px;height:12px;background:{LANDCOVER_COLORS.get(name,"#999")};'
-        f'display:inline-block;border-radius:2px;"></span>{name}</div>'
+        f'<div style="display:flex;align-items:center;gap:6px;margin:3px 0;">'
+        f'<span style="width:16px;height:16px;border-radius:50%;background:{LANDCOVER_COLORS.get(name,"#999")};'
+        f'display:flex;align-items:center;justify-content:center;flex:none;">'
+        f'{landcover_icon_svg(name, size=10, stroke="#fff")}</span>'
+        f'<span>{landcover_label(name, "en" if i == 0 else "nl")}</span></div>'
         for name in sorted(set(id_to_name.values()))
     )
     legend_title = ("Land cover (KMeans)", "Landgebruik (KMeans)")[i]
