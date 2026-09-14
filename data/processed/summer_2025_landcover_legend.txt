@@ -1,0 +1,6 @@
+0	Dense vegetation, mid canopy
+1	Grass / farmland
+2	Water
+3	Built-up / bare
+4	Dense vegetation, bright canopy
+5	Dense vegetation, dark canopy

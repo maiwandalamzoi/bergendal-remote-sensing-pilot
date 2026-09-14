@@ -4,39 +4,39 @@ This repo is prepared to deploy, but the last two steps need your own
 GitHub and Streamlit accounts — those can't be done from here. Everything
 up to that point is already in place.
 
-## What works on a fresh cloud deploy, and what doesn't
+## What works on a fresh cloud deploy
 
-`data/raw/` and `data/processed/` (the actual satellite/LiDAR/SAR rasters)
-are **344 MB** and deliberately not committed — see the comment in
-`.gitignore`. The one exception is `data/processed/stats.json` (a few
-tens of KB, pure JSON), which **is** committed, because it's what almost
-everything on the dashboard actually reads:
+The *full* multi-year archive in `data/raw/` and `data/processed/` is
+**344 MB** (22 years of imagery, kept for the historical trend
+computation) and stays out of git. But the map only ever reads the
+*current* pipeline year at render time -- checked against every
+`RAW_DIR`/`PROC_DIR` reference in `src/visualize.py`, not guessed -- and
+that subset is a real **~57 MB across 14 files**, small enough to
+version directly. Those 14 files (the current year's true-colour/NDVI/
+land-cover/SAR/elevation rasters, the flood-event raster, the BRP parcel
+geometry, `villages.geojson`, `no2.tif`) plus `stats.json` are carved out
+of `.gitignore` (see its own comment for the exact list and the
+`data/raw/*` + `!filename` pattern that makes the carve-out actually
+work). Verified by isolating just those 14 files from the rest of
+`data/raw`/`data/processed` locally and confirming `make_map()` and
+`field_explorer_map()` still build correctly in both languages before
+this was ever pushed -- not assumed from reading the code.
 
-| Works immediately (reads `stats.json` only) | Needs the full local pipeline |
-|---|---|
-| All Overview KPI cards | The interactive map (Overview + Field Explorer tabs) |
-| Every Altair chart (trends, forecast, land cover breakdown, air quality) | The "Build a PDF report" feature |
-| Methodology tab | |
-| Business case tab | |
-| Villages/Kernen tab | |
+Net effect: **the whole app, including the interactive map, works on a
+fresh Streamlit Cloud deploy** with no pipeline run required. The one
+thing that still needs the full local archive is the **PDF report**
+builder's *other* layers -- NDVI-change/SAR/elevation pages render fine
+(they're in the committed 14), but anything reaching for an
+uncommitted year (e.g. picking a different NDVI-change pair than
+2024→2025) will show the graceful "run the pipeline locally" message
+instead of crashing, per the fallback already built into `dashboard.py`.
 
-If someone opens the deployed map or tries to build a PDF report without
-the full data, they'll see a clear explanation (`run python
-run_pipeline.py locally`), not a crash — that graceful fallback is
-already built into `dashboard.py`.
-
-**Want the map working on the public deploy too?** That means either:
-1. Committing a *reduced* copy of `data/raw`/`data/processed` (re-encode
-   the GeoTIFFs at lower resolution/compression to get well under the
-   344 MB this repo currently produces) — a real follow-up task, not
-   done here since it would change what the map actually shows.
-2. Running `run_pipeline.py` (plus `fetch_cbs.py`, `fetch_brp.py`,
-   `fetch_air_quality.py`) as a one-time step against a persistent disk
-   Streamlit Cloud doesn't offer on its free tier — needs a different
-   host (Render, Fly.io, a VM) with a real volume.
-
-Neither is required to get the numbers/charts/methodology/business-case
-majority of the app live today.
+**Known limitation:** the 14 filenames above are pinned to *this*
+pipeline run's current year (`summer_2025`, `sar_2025`, the 2018–2026
+change map, the 2024-01-16 flood peak). The next time `run_pipeline.py`
+is run for a new current year, the `.gitignore` carve-out list and this
+paragraph both need updating to the new filenames, or the map will fall
+back to the old year's data until that's done.
 
 ## Steps (yours to run)
 

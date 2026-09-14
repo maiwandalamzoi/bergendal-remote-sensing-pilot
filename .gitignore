@@ -3,18 +3,42 @@ __pycache__/
 *.pyc
 
 # Raw and intermediate rasters are large and fully reproducible from
-# run_pipeline.py -- don't version them. stats.json is the one exception:
-# it's small (tens of KB, pure JSON, no rasters) and is what every KPI
-# card, chart, and text caption on the dashboard actually reads -- keeping
-# it versioned means a fresh clone/deploy (e.g. Streamlit Community Cloud)
-# shows real, current numbers immediately, with only the interactive map
-# (which reads the actual rasters below) degrading gracefully until
-# someone runs the full pipeline locally. `data/processed/*` (not
-# `data/processed/`) is deliberate -- a trailing-slash directory pattern
-# stops git from ever looking inside it, which would make the `!` negation
-# below silently do nothing.
-data/raw/
+# run_pipeline.py -- the full multi-year archive (344MB: every year back
+# to 2005, used only to build the historical trend numbers already baked
+# into stats.json) stays out of git. But the *current-year* files the
+# live map actually reads at render time -- one year's true-colour/NDVI/
+# land-cover/SAR/elevation rasters plus the BRP parcel geometry -- are a
+# real ~58MB, not 344MB, and are carved out below so a fresh deploy (e.g.
+# Streamlit Community Cloud) gets a working map immediately, not just the
+# stats.json-only numbers/charts. `data/raw/*` and `data/processed/*` (not
+# a trailing-slash directory pattern) are deliberate -- a directory
+# pattern stops git from ever looking inside it, which would make every
+# `!` negation below silently do nothing.
+#
+# Known limitation, not fixed here: these filenames are pinned to the
+# *current* pipeline year (summer_2025/2024/2026, sar_2025, the
+# 2018-2026 change map, the 2024-01-16 flood peak). Next time
+# run_pipeline.py's "current year" rolls forward, this list needs the
+# same rollover -- update the filenames below to match, or the newly
+# generated current-year files won't be tracked and the deploy will fall
+# back to the graceful "run the pipeline locally" message again.
+data/raw/*
+!data/raw/villages.geojson
+!data/raw/summer_2025.tif
+!data/raw/brp_parcels.geojson
+!data/raw/no2.tif
+!data/raw/dtm_05m.tif
+!data/raw/ndsm_05m.tif
 data/processed/*
 !data/processed/stats.json
+!data/processed/summer_2025_indices.tif
+!data/processed/summer_2025_landcover.tif
+!data/processed/summer_2025_landcover_legend.txt
+!data/processed/ndvi_change_summer_2024_to_summer_2025.tif
+!data/processed/sar_2025_indices.tif
+!data/processed/flood_extent_sar_highwater_2024.tif
+!data/processed/flood_changedetect_sar_event_20240116.tif
+!data/processed/landcover_change_2018_2026.tif
 outputs/*.png
 outputs/*.html
+*.docx
