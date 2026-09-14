@@ -992,15 +992,27 @@ def make_map(label_new: str = "summer_2025", label_old: str = "summer_2024", lan
         for name in sorted(set(id_to_name.values()))
     )
     legend_title = ("Land cover (KMeans)", "Landgebruik (KMeans)")[i]
-    legend_html = f"""
-    <div style="position: fixed; bottom: 24px; left: 24px; z-index: 9999;
-                background: white; padding: 10px 14px; border-radius: 8px;
-                box-shadow: 0 2px 10px rgba(0,0,0,.2); font-family: sans-serif; font-size: 12px;">
-      <div style="font-weight:600; margin-bottom:4px;">{legend_title}</div>
-      {legend_rows}
-    </div>
+    land_cover_legend_block = f"""
+    <details class="bd-legend" open>
+      <summary>{legend_title}</summary>
+      <div class="bd-legend-body">{legend_rows}</div>
+    </details>
     """
-    m.get_root().html.add_child(folium.Element(legend_html))
+    # Shared style for every <details class="bd-legend"> block on this map
+    # (land cover, BRP, forest-change, flood -- built at various points
+    # below) -- added once, here, since land_cover_legend_block above is
+    # always built regardless of what else is on the map.
+    m.get_root().html.add_child(folium.Element("""
+    <style>
+      details.bd-legend { background: white; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,.2);
+        font-family: sans-serif; font-size: 12px; }
+      details.bd-legend summary { padding: 10px 14px; font-weight: 600; cursor: pointer; list-style: none; }
+      details.bd-legend summary::-webkit-details-marker { display: none; }
+      details.bd-legend summary::after { content: '▾'; float: right; margin-left: 14px; color: #999; font-weight: 400; }
+      details.bd-legend[open] summary::after { content: '▴'; }
+      details.bd-legend .bd-legend-body { padding: 0 14px 12px; }
+    </style>
+    """))
 
     flood_stats = load_stats().get("flood_event", {})
     net_change_txt = f"{flood_stats['net_change_pct']:+.1f}" if "net_change_pct" in flood_stats else "?"
@@ -1030,24 +1042,26 @@ def make_map(label_new: str = "summer_2025", label_old: str = "summer_2024", lan
                      f"zie README/tabblad Water."),
         },
     ][i]
-    flood_legend_html = f"""
-    <div style="position: fixed; bottom: 24px; right: 24px; z-index: 9999;
-                background: white; padding: 10px 14px; border-radius: 8px;
-                box-shadow: 0 2px 10px rgba(0,0,0,.2); font-family: sans-serif; font-size: 12px; max-width: 240px;">
-      <div style="font-weight:600; margin-bottom:4px;">{flood_legend_text['title']}</div>
-      <div style="display:flex;align-items:center;gap:6px;margin:2px 0;">
-        <span style="width:12px;height:12px;background:#3B6E8A;display:inline-block;border-radius:2px;"></span>
-        {flood_legend_text['permanent']}</div>
-      <div style="display:flex;align-items:center;gap:6px;margin:2px 0;">
-        <span style="width:12px;height:12px;background:#C03B2E;display:inline-block;border-radius:2px;"></span>
-        {flood_legend_text['newly']}</div>
-      <div style="display:flex;align-items:center;gap:6px;margin:2px 0;">
-        <span style="width:12px;height:12px;background:#C9B47A;display:inline-block;border-radius:2px;"></span>
-        {flood_legend_text['missed']}</div>
-      <div style="margin-top:6px; color:#666; font-size:10.5px;">{flood_legend_text['note']}</div>
-    </div>
+    flood_legend_block = f"""
+    <details class="bd-legend" style="max-width: 240px;">
+      <summary>{flood_legend_text['title']}</summary>
+      <div class="bd-legend-body">
+        <div style="display:flex;align-items:center;gap:6px;margin:2px 0;">
+          <span style="width:12px;height:12px;background:#3B6E8A;display:inline-block;border-radius:2px;"></span>
+          {flood_legend_text['permanent']}</div>
+        <div style="display:flex;align-items:center;gap:6px;margin:2px 0;">
+          <span style="width:12px;height:12px;background:#C03B2E;display:inline-block;border-radius:2px;"></span>
+          {flood_legend_text['newly']}</div>
+        <div style="display:flex;align-items:center;gap:6px;margin:2px 0;">
+          <span style="width:12px;height:12px;background:#C9B47A;display:inline-block;border-radius:2px;"></span>
+          {flood_legend_text['missed']}</div>
+        <div style="margin-top:6px; color:#666; font-size:10.5px;">{flood_legend_text['note']}</div>
+      </div>
+    </details>
     """
-    m.get_root().html.add_child(folium.Element(flood_legend_html))
+    m.get_root().html.add_child(folium.Element(f"""
+    <div style="position: fixed; bottom: 24px; right: 24px; z-index: 9999;">{flood_legend_block}</div>
+    """))
 
     brp_legend_rows = "".join(
         f'<div style="display:flex;align-items:center;gap:6px;margin:2px 0;">'
@@ -1056,17 +1070,17 @@ def make_map(label_new: str = "summer_2025", label_old: str = "summer_2024", lan
     )
     brp_legend_title = ("Field boundaries (BRP)", "Perceelgrenzen (BRP)")[i]
     brp_legend_note = ("Per-crop breakdown is on the dashboard.", "Uitsplitsing per gewas staat op het dashboard.")[i]
-    brp_legend_html = f"""
-    <div style="position: fixed; bottom: 300px; left: 24px; z-index: 9999;
-                background: white; padding: 10px 14px; border-radius: 8px;
-                box-shadow: 0 2px 10px rgba(0,0,0,.2); font-family: sans-serif; font-size: 12px;">
-      <div style="font-weight:600; margin-bottom:4px;">{brp_legend_title}</div>
-      {brp_legend_rows}
-      <div style="margin-top:4px; color:#666; font-size:10.5px;">{brp_legend_note}</div>
-    </div>
+    brp_legend_block = f"""
+    <details class="bd-legend">
+      <summary>{brp_legend_title}</summary>
+      <div class="bd-legend-body">
+        {brp_legend_rows}
+        <div style="margin-top:4px; color:#666; font-size:10.5px;">{brp_legend_note}</div>
+      </div>
+    </details>
     """
-    m.get_root().html.add_child(folium.Element(brp_legend_html))
 
+    lcc_legend_block = ""
     if lcc_path is not None:
         _lcc_ha = lc_change_stats.get("ha", {})
         _lcc_rows_spec = [
@@ -1095,17 +1109,29 @@ def make_map(label_new: str = "summer_2025", label_old: str = "summer_2024", lan
             "verandering erven de echte jaar-op-jaar classifier-wiebel van die reeks. Ongewijzigde grond "
             "(de grote meerderheid) is bewust transparant gelaten, zodat alleen echte verandering opvalt.",
         )[i]
-        lcc_legend_html = f"""
-        <div style="position: fixed; bottom: 24px; left: 300px; z-index: 9999;
-                    background: white; padding: 10px 14px; border-radius: 8px;
-                    box-shadow: 0 2px 10px rgba(0,0,0,.2); font-family: sans-serif; font-size: 12px;
-                    max-width: 250px;">
-          <div style="font-weight:600; margin-bottom:4px;">{lcc_legend_title}</div>
-          {lcc_legend_rows}
-          <div style="margin-top:6px; color:#666; font-size:10px; line-height:1.4;">{lcc_legend_note}</div>
-        </div>
+        lcc_legend_block = f"""
+        <details class="bd-legend" style="max-width: 260px;">
+          <summary>{lcc_legend_title}</summary>
+          <div class="bd-legend-body">
+            {lcc_legend_rows}
+            <div style="margin-top:6px; color:#666; font-size:10px; line-height:1.4;">{lcc_legend_note}</div>
+          </div>
+        </details>
         """
-        m.get_root().html.add_child(folium.Element(lcc_legend_html))
+
+    # One collapsible stack, bottom-left, instead of four separate boxes
+    # scattered at hand-picked pixel offsets -- "a real map report" is
+    # also "not a wall of always-open text boxes." Land cover opens by
+    # default (the most commonly toggled-on layer alongside true colour);
+    # the rest are one click away rather than always taking up space.
+    m.get_root().html.add_child(folium.Element(f"""
+    <div style="position: fixed; bottom: 24px; left: 24px; z-index: 9999; display: flex;
+                flex-direction: column; gap: 8px; max-width: 260px;">
+      {land_cover_legend_block}
+      {brp_legend_block}
+      {lcc_legend_block}
+    </div>
+    """))
 
     # Print/report block: a QGIS-print-composer-style title/scope/date/
     # source strip and a north arrow (see _report_header_element /

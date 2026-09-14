@@ -50,7 +50,10 @@ BRP_PATH = Path(__file__).resolve().parent / "data" / "raw" / "brp_parcels.geojs
 st.set_page_config(page_title="Berg en Dal — remote sensing pilot", layout="wide", page_icon="🛰️")
 
 if "lang" not in st.session_state:
-    st.session_state["lang"] = "en"
+    # Dutch by default -- the primary audience (Berg en Dal municipal
+    # staff, local farmers) is Dutch; English stays one click away via
+    # the sidebar toggle for anyone who needs it.
+    st.session_state["lang"] = "nl"
 
 
 def t(en: str, nl: str) -> str:
@@ -59,6 +62,31 @@ def t(en: str, nl: str) -> str:
     never passed through t() -- it stays in its real, authoritative Dutch
     regardless of the UI language."""
     return en if st.session_state.get("lang", "en") == "en" else nl
+
+
+# Small, hand-drawn line icons (Feather/Lucide-style: single stroke colour,
+# rounded caps, plain geometric shapes) for the headline stat cards -- the
+# deliberate alternative to emoji after the icon-reduction pass: a real,
+# restrained icon system instead of either colourful emoji or no icon at
+# all. Built as plain inline SVG (no icon font/CDN dependency) so they
+# always render, in print too.
+_ICON_PATHS = {
+    "calendar": '<rect x="3" y="5" width="18" height="16" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="8" y1="3" x2="8" y2="7"/><line x1="16" y1="3" x2="16" y2="7"/>',
+    "grid": '<rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/>',
+    "satellite": '<circle cx="12" cy="9" r="5"/><path d="M12 14 L12 21"/><path d="M8 21 L16 21"/><path d="M6 5 L3 2"/><path d="M18 5 L21 2"/>',
+    "wave": '<path d="M2 14c2-3 4-3 6 0s4 3 6 0 4-3 6 0"/><path d="M2 18c2-3 4-3 6 0s4 3 6 0 4-3 6 0"/>',
+    "person": '<circle cx="12" cy="8" r="3.2"/><path d="M5 20c0-4 3-6.5 7-6.5s7 2.5 7 6.5"/>',
+    "house": '<path d="M4 11 L12 4 L20 11"/><path d="M6 10 V20 H18 V10"/>',
+    "leaf": '<path d="M6 20c-2-8 2-15 13-16 1 11-6 15-13 16z"/><path d="M7 19c3-4 6-7 11-13"/>',
+    "pin": '<path d="M12 21s7-7.5 7-12a7 7 0 1 0-14 0c0 4.5 7 12 7 12z"/><circle cx="12" cy="9" r="2.4"/>',
+    "sun": '<circle cx="12" cy="12" r="4.5"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/><line x1="4.5" y1="4.5" x2="6.5" y2="6.5"/><line x1="17.5" y1="17.5" x2="19.5" y2="19.5"/><line x1="4.5" y1="19.5" x2="6.5" y2="17.5"/><line x1="17.5" y1="6.5" x2="19.5" y2="4.5"/>',
+}
+
+
+def icon_svg(name: str, size: int = 18) -> str:
+    body = _ICON_PATHS[name]
+    return (f'<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+            f'stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">{body}</svg>')
 
 
 @st.cache_data
@@ -118,20 +146,44 @@ st.markdown("""
 :root { --forest: #2E5943; --forest-soft: #E2ECE4; --river: #3B6E8A; --loess: #A2712F; --ink: #16221C; --ink-2: #51604F; --line: #CBD3C1; }
 html, body, [class*="css"] { font-family: "Source Sans 3", system-ui, sans-serif; }
 h1, h2, h3 { font-family: "Fraunces", Georgia, serif !important; color: var(--ink); }
-.bd-header { background: linear-gradient(135deg, #2E5943 0%, #1B3E2E 100%); color: #F3F6F1; padding: 30px 34px; border-radius: 14px; margin-bottom: 22px; }
-.bd-header h1 { color: #FFFFFF !important; margin: 0 0 8px 0; font-size: 2.1rem; }
+/* A colored accent bar to the left of every section heading -- one small,
+   consistent "designed" touch repeated everywhere, rather than decoration
+   piled onto any one spot. h1 is only ever the hero header (styled
+   separately below) so this only ever touches real section headings. */
+[data-testid="stAppViewContainer"] h2, [data-testid="stAppViewContainer"] h3 {
+  border-left: 4px solid var(--forest); padding-left: 14px; margin: 30px 0 14px !important;
+}
+[data-testid="stAppViewContainer"] h4 { color: var(--ink); margin-top: 22px !important; }
+hr { margin: 30px 0 !important; border-color: var(--line) !important; }
+.bd-header {
+  background:
+    repeating-linear-gradient(135deg, rgba(255,255,255,.045) 0px, rgba(255,255,255,.045) 2px, transparent 2px, transparent 16px),
+    radial-gradient(circle at 85% 15%, rgba(255,255,255,.07) 0%, transparent 45%),
+    linear-gradient(135deg, #2E5943 0%, #1B3E2E 100%);
+  color: #F3F6F1; padding: 30px 34px; border-radius: 14px; margin-bottom: 26px;
+}
+.bd-header h1 { color: #FFFFFF !important; margin: 0 0 8px 0; font-size: 2.1rem; border-left: none !important; padding-left: 0 !important; }
 .bd-header p { margin: 0; color: #DCE7DD; font-size: 0.96rem; line-height: 1.5; }
 .bd-header .bd-meta { display:block; margin-top:8px; opacity:.72; font-size:.82rem; }
 .bd-tag { display:inline-block; font-family:"JetBrains Mono", monospace; font-size:.68rem; letter-spacing:.08em; text-transform:uppercase; background: rgba(255,255,255,.15); color:#EAF1EA; padding:4px 11px; border-radius:20px; margin-bottom:12px; }
-div[data-testid="stMetric"] { background: #FFFFFF; border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px 12px; box-shadow: 0 1px 2px rgba(22,34,28,.05); }
+div[data-testid="stMetric"] { background: #FFFFFF; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px 12px; box-shadow: 0 1px 3px rgba(22,34,28,.07); transition: box-shadow .15s ease, transform .15s ease; }
+div[data-testid="stMetric"]:hover { box-shadow: 0 4px 12px rgba(22,34,28,.1); transform: translateY(-1px); }
 div[data-testid="stMetricLabel"] { color: var(--ink-2); }
 div[data-testid="stMetricValue"] { font-variant-numeric: tabular-nums; }
 button[data-baseweb="tab"] { font-weight: 600; font-size: 0.95rem; }
 button[data-baseweb="tab"][aria-selected="true"] { color: var(--forest) !important; }
 [data-baseweb="tab-highlight"] { background-color: var(--forest) !important; }
+[data-testid="stExpander"] { border-radius: 12px !important; border: 1px solid var(--line) !important; box-shadow: 0 1px 3px rgba(22,34,28,.06); }
+[data-testid="stDataFrame"] { border-radius: 12px; overflow: hidden; border: 1px solid var(--line); }
+[data-testid="stPopoverBody"] { border-radius: 12px !important; }
 .bd-stat-strip { display: flex; flex-wrap: wrap; gap: 10px; margin: -8px 0 22px; }
-.bd-stat-pill { flex: 1 1 160px; background: #FFFFFF; border: 1px solid var(--line); border-radius: 10px;
-  padding: 12px 16px; box-shadow: 0 1px 2px rgba(22,34,28,.05); }
+.bd-stat-pill {
+  flex: 1 1 160px; background: #FFFFFF; border: 1px solid var(--line); border-radius: 12px;
+  padding: 12px 16px; box-shadow: 0 1px 3px rgba(22,34,28,.07); display: flex; gap: 12px; align-items: flex-start;
+  transition: box-shadow .15s ease, transform .15s ease;
+}
+.bd-stat-pill:hover { box-shadow: 0 4px 12px rgba(22,34,28,.1); transform: translateY(-1px); }
+.bd-stat-icon { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 9px; background: var(--forest-soft); color: var(--forest); display: flex; align-items: center; justify-content: center; }
 .bd-stat-num { font-family: "Fraunces", Georgia, serif; font-weight: 600; font-size: 1.5rem; color: var(--forest); line-height: 1.1; }
 .bd-stat-lbl { color: var(--ink-2); font-size: .8rem; margin-top: 2px; }
 @media print {
@@ -279,14 +331,15 @@ st.markdown(
 _span = (f"{trend['years'][0]}–{trend['years'][-1]}" if trend.get("years") else "n/a")
 _n_years = (trend["years"][-1] - trend["years"][0] + 1) if trend.get("years") else 0
 _pills = [
-    (f"{_n_years} {t('years', 'jaar')}", f"{t('of satellite data', 'aan satellietdata')} · {_span}"),
-    (f"{brp.get('n_parcels', 0):,.0f}", t("farm parcels, individually clickable", "landbouwpercelen, elk afzonderlijk klikbaar")),
-    (t("5 sensors", "5 sensoren"), t("Sentinel-1/2, Landsat, AHN LiDAR, RIVM, KNMI", "Sentinel-1/2, Landsat, AHN LiDAR, RIVM, KNMI")),
-    (f"{len(flood_event.get('timeline', []))} {t('dates', 'data')}", t("through the Jan 2024 flood event", "door de hoogwatergebeurtenis van jan. 2024")),
+    ("calendar", f"{_n_years} {t('years', 'jaar')}", f"{t('of satellite data', 'aan satellietdata')} · {_span}"),
+    ("grid", f"{brp.get('n_parcels', 0):,.0f}", t("farm parcels, individually clickable", "landbouwpercelen, elk afzonderlijk klikbaar")),
+    ("satellite", t("5 sensors", "5 sensoren"), t("Sentinel-1/2, Landsat, AHN LiDAR, RIVM, KNMI", "Sentinel-1/2, Landsat, AHN LiDAR, RIVM, KNMI")),
+    ("wave", f"{len(flood_event.get('timeline', []))} {t('dates', 'data')}", t("through the Jan 2024 flood event", "door de hoogwatergebeurtenis van jan. 2024")),
 ]
 st.markdown(f"""
 <div class="bd-stat-strip">
-  {''.join(f'<div class="bd-stat-pill"><div class="bd-stat-num">{n}</div><div class="bd-stat-lbl">{l}</div></div>' for n, l in _pills)}
+  {''.join(f'<div class="bd-stat-pill"><div class="bd-stat-icon">{icon_svg(ic)}</div>'
+           f'<div><div class="bd-stat-num">{n}</div><div class="bd-stat-lbl">{l}</div></div></div>' for ic, n, l in _pills)}
 </div>
 """, unsafe_allow_html=True)
 
@@ -683,12 +736,76 @@ tab_overview, tab_explorer, tab_villages, tab_land, tab_climate, tab_forecast, t
 
 # ======================================================================
 with tab_overview:
+    st.caption(t("Click any card below for more detail.", "Klik op een van de onderstaande kaarten voor meer detail."))
     c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric(t("Population", "Inwoners"), m(cbs, "population"))
-    c2.metric(t("Households", "Huishoudens"), m(cbs, "households"))
-    c3.metric(t("Registered farmland", "Landbouwgrond"), f"{brp.get('total_area_ha', 0):,.0f} ha")
-    c4.metric(t("Land area", "Landoppervlakte"), m(cbs, "land_area_ha"))
-    c5.metric(t("Homes with solar", "Zonnepanelen"), f"{m(cbs, 'homes_with_solar_pct', '{:.0f}')}%")
+    with c1:
+        st.metric(t("Population", "Inwoners"), m(cbs, "population"), border=True,
+                  chart_data=cbs_trend.get("population") or None, chart_type="line", delta_color="off")
+        with st.popover(t("More", "Meer"), use_container_width=True):
+            st.markdown(t(
+                f"**{m(cbs, 'population_density')} residents/km²** — "
+                f"{m(cbs, 'population_male')} male, {m(cbs, 'population_female')} female.\n\n"
+                f"Age: {m(cbs,'population_under15_pct')}% under 15, {m(cbs,'population_25to45_pct')}% "
+                f"25–45, {m(cbs,'population_65plus_pct')}% 65+.\n\n"
+                f"Last year: {m(cbs,'births_last_year')} births, {m(cbs,'deaths_last_year')} deaths — "
+                "natural decline, offset by migration (the population is still real, positive net "
+                "growth — see the growth figure on Villages/Forecast).",
+                f"**{m(cbs, 'population_density')} inwoners/km²** — "
+                f"{m(cbs, 'population_male')} man, {m(cbs, 'population_female')} vrouw.\n\n"
+                f"Leeftijd: {m(cbs,'population_under15_pct')}% onder 15, {m(cbs,'population_25to45_pct')}% "
+                f"25–45, {m(cbs,'population_65plus_pct')}% 65+.\n\n"
+                f"Afgelopen jaar: {m(cbs,'births_last_year')} geboorten, {m(cbs,'deaths_last_year')} "
+                "sterfgevallen — natuurlijke krimp, gecompenseerd door migratie (de bevolking groeit nog "
+                "steeds netto — zie het groeicijfer bij Kernen/Voorspelling).",
+            ))
+    with c2:
+        st.metric(t("Households", "Huishoudens"), m(cbs, "households"), border=True,
+                  chart_data=cbs_trend.get("households") or None, chart_type="line", delta_color="off")
+        with st.popover(t("More", "Meer"), use_container_width=True):
+            st.markdown(t(
+                f"**{m(cbs, 'avg_household_size', '{:.1f}')} people/household** on average.\n\n"
+                f"{m(cbs,'single_person_households_pct')}% single-person, "
+                f"{m(cbs,'households_with_children_pct')}% with children.\n\n"
+                f"{m(cbs, 'new_homes_last_year', '{:.0f}')} new homes last year — "
+                f"{m(cbs, 'housing_stock')} total housing stock.",
+                f"**{m(cbs, 'avg_household_size', '{:.1f}')} personen/huishouden** gemiddeld.\n\n"
+                f"{m(cbs,'single_person_households_pct')}% eenpersoons, "
+                f"{m(cbs,'households_with_children_pct')}% met kinderen.\n\n"
+                f"{m(cbs, 'new_homes_last_year', '{:.0f}')} nieuwe woningen afgelopen jaar — "
+                f"{m(cbs, 'housing_stock')} woningvoorraad totaal.",
+            ))
+    with c3:
+        st.metric(t("Registered farmland", "Landbouwgrond"), f"{brp.get('total_area_ha', 0):,.0f} ha", border=True)
+        with st.popover(t("More", "Meer"), use_container_width=True):
+            st.markdown(t("**Top crops by area:**", "**Grootste gewassen naar oppervlakte:**"))
+            for crop, ha in list(brp.get("top_crops_ha", {}).items())[:5]:
+                st.caption(f"{crop} — {ha:,.0f} ha")
+    with c4:
+        st.metric(t("Land area", "Landoppervlakte"), m(cbs, "land_area_ha"), border=True)
+        with st.popover(t("More", "Meer"), use_container_width=True):
+            st.markdown(t(
+                f"**{m(cbs, 'water_area_ha')} ha** of that is water (Rhine/Waal floodplain) — not "
+                "counted in the land-area figure shown.\n\n"
+                f"{m(cbs, 'population_density')} residents/km² overall — see Villages for the "
+                "per-place breakdown.",
+                f"**{m(cbs, 'water_area_ha')} ha** daarvan is water (uiterwaarden van Rijn/Waal) — niet "
+                "meegeteld in het getoonde landoppervlaktecijfer.\n\n"
+                f"{m(cbs, 'population_density')} inwoners/km² gemeentebreed — zie Kernen voor de "
+                "uitsplitsing per plaats.",
+            ))
+    with c5:
+        st.metric(t("Homes with solar", "Zonnepanelen"), f"{m(cbs, 'homes_with_solar_pct', '{:.0f}')}%", border=True)
+        with st.popover(t("More", "Meer"), use_container_width=True):
+            st.markdown(t(
+                f"Only **{m(cbs, 'gas_free_homes_pct', '{:.0f}')}% gas-free** — the remaining energy "
+                "transition is heating, not solar adoption.\n\n"
+                f"Avg. electricity use: {m(cbs, 'avg_electricity_use_kwh', '{:.0f}')} kWh/yr · avg. solar "
+                f"feed-in: {m(cbs, 'avg_solar_feedback_kwh', '{:.0f}')} kWh/yr.",
+                f"Slechts **{m(cbs, 'gas_free_homes_pct', '{:.0f}')}% aardgasvrij** — de resterende "
+                "energietransitie gaat over verwarming, niet over zonneadoptie.\n\n"
+                f"Gem. elektriciteitsverbruik: {m(cbs, 'avg_electricity_use_kwh', '{:.0f}')} kWh/jr · gem. "
+                f"teruglevering zon: {m(cbs, 'avg_solar_feedback_kwh', '{:.0f}')} kWh/jr.",
+            ))
 
     st.divider()
     st.subheader(t("Map", "Kaart"))

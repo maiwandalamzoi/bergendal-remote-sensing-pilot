@@ -501,6 +501,48 @@ Field Explorer's own layer list (3-4 items: fields, village outline,
 municipal boundary) stays a plain `LayerControl` — short enough that
 grouping it would be overhead, not help.
 
+### Dutch by default; a design pass for "make it nicer, not more emoji"
+
+**Dutch is now the default language** (`st.session_state["lang"] = "nl"`),
+English one click away in the sidebar — the primary audience (Berg en Dal
+municipal staff, local farmers) is Dutch; the app used to default to
+English.
+
+After the icon-reduction pass left the page feeling flat, a second design
+pass added real visual structure back without reintroducing emoji:
+
+- A **colored accent bar** on every section heading (`h2`/`h3` get a
+  4px `border-left` in the forest-green brand colour) — one small,
+  consistent "designed" touch repeated everywhere, cheaper and more
+  restrained than decorating each heading individually.
+- A **hand-drawn line-icon set** (`icon_svg()` in `dashboard.py`, plain
+  inline SVG — calendar/grid/satellite/wave/person/house/leaf/pin/sun,
+  Feather/Lucide-style single-stroke shapes, no icon-font or CDN
+  dependency) replacing emoji on the header stat pills — the deliberate
+  alternative to "colourful emoji vs. no icon at all."
+- A **subtle diagonal texture** layered into the hero header's existing
+  green gradient (a repeating linear-gradient at low opacity) — texture,
+  not another colour.
+- **Every headline metric is now real, native `st.metric` with
+  `border=True`** (a hover-lift shadow instead of a hand-rolled card),
+  and the two with real multi-year data (population, households) get an
+  inline sparkline (`chart_data=cbs_trend[...]`) for free.
+- **Every headline metric is genuinely clickable now** — a `st.popover`
+  under each one surfaces real detail this pipeline already had but
+  wasn't showing (population density/age split/births vs. deaths,
+  household size/composition, top crops, water-vs-land area split,
+  gas-free % and electricity use) rather than a fake link to nowhere.
+
+**The map's own legends got the same treatment.** Four legend boxes
+(land cover, BRP categories, forest-change, flood) used to float at
+independently hand-picked pixel offsets, all always fully open — visual
+clutter that got worse every time a new layer was added. Replaced with
+plain HTML `<details>`/`<summary>` elements (no JS, works everywhere)
+stacked into one collapsible panel bottom-left (land cover open by
+default, the rest one click away) plus the flood legend collapsible on
+its own bottom-right — the map now shows exactly as much as is asked
+for, not everything at once.
+
 ## What it found (first pass)
 
 - Land cover, Aug 2025: ~77% dense vegetation (three brightness tiers —
