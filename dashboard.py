@@ -23,6 +23,7 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 import rasterio
+from rasterio.errors import RasterioIOError
 import streamlit as st
 from rasterio.warp import transform as warp_transform
 from shapely.geometry import Point
@@ -43,7 +44,7 @@ COLOR_SELECTED = "#4a3aa7"  # Year Explorer highlight ring -- distinct from the 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 from statsutil import load_stats
 from visualize import (make_map, field_explorer_map, FIELD_COLOR_MODES, CROP_FAMILIES, classify_crop,
-                        LANDCOVER_COLORS, landcover_label, landcover_icon_svg)
+                        LANDCOVER_COLORS, landcover_label, landcover_icon_svg, BRP_COLORS)
 from report import build_report_pdf, REPORT_LAYER_CHOICES
 from crop_rotation import normalize_crop
 from methodology import ENTRIES as METHOD_ENTRIES
@@ -909,6 +910,48 @@ def crop_family_chart(gdf: gpd.GeoDataFrame) -> alt.Chart:
     return chart.configure_view(strokeWidth=0).configure_axisX(**CHART_AXIS_X_KW).configure_axisY(**CHART_AXIS_Y_KW)
 
 
+def brp_category_chart(cat_ha: dict) -> alt.Chart:
+    """BRP's own official land-use category per hectare, coloured by
+    BRP_COLORS -- the same colours the map's own "Category (BRP)" layer
+    and legend use, so this chart and that map layer never disagree.
+    Category names are real BRP registry vocabulary (Grasland, Bouwland,
+    ...), left untranslated like every other registry name in this app
+    (crop names, family labels' underlying key) -- only the axis title
+    and tooltip label route through t()."""
+    df = pd.DataFrame({"category": list(cat_ha.keys()), "ha": list(cat_ha.values())})
+    df = df.sort_values("ha", ascending=True)
+    chart = alt.Chart(df).mark_bar(height=18, cornerRadiusEnd=3).encode(
+        x=alt.X("ha:Q", title="ha"),
+        y=alt.Y("category:N", title=None, sort=None),
+        color=alt.Color("category:N",
+                         scale=alt.Scale(domain=list(BRP_COLORS.keys()), range=list(BRP_COLORS.values())),
+                         legend=None),
+        tooltip=[alt.Tooltip("category:N", title=t("Category", "Categorie")), alt.Tooltip("ha:Q", title="ha", format=",.0f")],
+    ).properties(height=26 * len(df) + 20)
+    return chart.configure_view(strokeWidth=0).configure_axisX(**CHART_AXIS_X_KW).configure_axisY(**CHART_AXIS_Y_KW)
+
+
+def top_crops_chart(crops: dict) -> alt.Chart:
+    """The top individual crop names by area, coloured by which
+    CROP_FAMILIES family each one belongs to (via the same classify_crop()
+    the map's own crop-family layer uses) -- so a reader can see at a
+    glance which family dominates the top-crops list without the two
+    charts (this one and crop_family_chart above) using unrelated
+    colours for the same underlying grouping. Crop names are real BRP
+    registry vocabulary, left untranslated like elsewhere in this app."""
+    df = pd.DataFrame({"crop": list(crops.keys()), "ha": list(crops.values())})
+    df["family"] = df["crop"].map(lambda c: classify_crop(c, ""))
+    df["color"] = df["family"].map(lambda f: CROP_FAMILIES[f][0])
+    df = df.sort_values("ha", ascending=True)
+    chart = alt.Chart(df).mark_bar(height=18, cornerRadiusEnd=3).encode(
+        x=alt.X("ha:Q", title="ha"),
+        y=alt.Y("crop:N", title=None, sort=None, axis=alt.Axis(labelLimit=220)),
+        color=alt.Color("crop:N", scale=alt.Scale(domain=df["crop"].tolist(), range=df["color"].tolist()), legend=None),
+        tooltip=[alt.Tooltip("crop:N", title=t("Crop", "Gewas")), alt.Tooltip("ha:Q", title="ha", format=",.0f")],
+    ).properties(height=26 * len(df) + 20)
+    return chart.configure_view(strokeWidth=0).configure_axisX(**CHART_AXIS_X_KW).configure_axisY(**CHART_AXIS_Y_KW)
+
+
 def flood_timeline_chart(flood_event: dict) -> alt.LayerChart:
     """Flooded-ground share through the event -- one series (a magnitude
     over time), so phases show up via tooltip rather than a second legend
@@ -1133,7 +1176,26 @@ with tab_overview:
     if selected_village:
         st.caption("📍 " + t(f"Zoomed to **{selected_village}** (outlined) — change in the sidebar.",
                               f"Ingezoomd op **{selected_village}** (omlijnd) — wijzig in de zijbalk."))
-    st.components.v1.html(get_map_html(LANG, selected_village), height=760)
+    try:
+        st.components.v1.html(get_map_html(LANG, selected_village), height=760)
+    except (FileNotFoundError, RasterioIOError) as exc:
+        # A deploy that only has data/processed/stats.json (the small,
+        # committed subset) and not the full satellite/LiDAR raster
+        # archive (data/raw, data/processed/*.tif -- deliberately kept out
+        # of git, see .gitignore) can't render the map layers, which read
+        # those rasters directly. Everything else on this page (KPI cards,
+        # every chart, Methodology, Business case) only needs stats.json
+        # and still works -- so this degrades one section instead of
+        # crashing the whole app, and says exactly why.
+        st.info(t(
+            f"The interactive map needs the full satellite/LiDAR raster archive, which this "
+            f"deployment doesn't have (only the small `stats.json` summary is included here) — "
+            f"run `python run_pipeline.py` locally for the full map. ({exc.__class__.__name__})",
+            f"De interactieve kaart heeft het volledige satelliet-/LiDAR-archief nodig, dat deze "
+            f"deployment niet heeft (alleen de kleine `stats.json`-samenvatting is hier "
+            f"meegenomen) — draai `python run_pipeline.py` lokaal voor de volledige kaart. "
+            f"({exc.__class__.__name__})",
+        ))
 
     st.divider()
     st.subheader(t("Land cover (KMeans, satellite-derived)", "Landgebruik (KMeans, satellietafgeleid)"))
@@ -1205,12 +1267,25 @@ with tab_explorer:
                               f"Alleen **{selected_village}** getoond — wijzig in de zijbalk."))
 
     map_col, detail_col = st.columns([5, 2])
+    map_state = None
     with map_col:
-        field_map = field_explorer_map(color_by=color_key, lang=LANG, village=selected_village)
-        map_state = st_folium(
-            field_map, width=None, height=720,
-            returned_objects=["last_object_clicked"], key=f"field_map_{color_key}_{LANG}_{selected_village}",
-        )
+        try:
+            field_map = field_explorer_map(color_by=color_key, lang=LANG, village=selected_village)
+            map_state = st_folium(
+                field_map, width=None, height=720,
+                returned_objects=["last_object_clicked"], key=f"field_map_{color_key}_{LANG}_{selected_village}",
+            )
+        except (FileNotFoundError, RasterioIOError) as exc:
+            # Same real limitation as the Overview map above -- this needs
+            # the full raster archive, not just stats.json.
+            st.info(t(
+                f"Field Explorer's map needs the full satellite/LiDAR raster archive, which this "
+                f"deployment doesn't have — run `python run_pipeline.py` locally for the full map. "
+                f"({exc.__class__.__name__})",
+                f"De kaart van Perceelverkenner heeft het volledige satelliet-/LiDAR-archief nodig, "
+                f"dat deze deployment niet heeft — draai `python run_pipeline.py` lokaal voor de "
+                f"volledige kaart. ({exc.__class__.__name__})",
+            ))
 
     with detail_col:
         st.markdown(f"**{t('Selected field', 'Geselecteerd perceel')}**")
@@ -1241,7 +1316,20 @@ with tab_explorer:
                             unsafe_allow_html=True)
                 _how_going = t("How it's going", "Hoe het ervoor staat")
                 st.markdown(f"**{_how_going}**")
-                st.bar_chart(pd.DataFrame({"NDVI": [ndvi24, ndvi25]}, index=["2024", "2025"]))
+                # KPI_INK, not a default Streamlit blue -- the same forest
+                # green every other NDVI visual on this page uses (the
+                # range bars just above, the map's own NDVI layer), so this
+                # small chart doesn't read as an unrelated colour system.
+                _ndvi_hist_df = pd.DataFrame({"year": ["2024", "2025"], "NDVI": [ndvi24, ndvi25]})
+                _ndvi_hist_chart = alt.Chart(_ndvi_hist_df).mark_bar(color=KPI_INK, cornerRadiusTopLeft=3, cornerRadiusTopRight=3).encode(
+                    x=alt.X("year:N", title=None),
+                    y=alt.Y("NDVI:Q", scale=alt.Scale(domain=[0, 1])),
+                    tooltip=[alt.Tooltip("year:N", title=t("Year", "Jaar")), alt.Tooltip("NDVI:Q", format=".3f")],
+                ).properties(height=140)
+                st.altair_chart(
+                    _ndvi_hist_chart.configure_view(strokeWidth=0).configure_axisX(**CHART_AXIS_X_KW).configure_axisY(**CHART_AXIS_Y_KW),
+                    use_container_width=True,
+                )
             else:
                 st.caption(t(
                     "No NDVI trend for this field (cloud-masked in one of the two years).",
@@ -1411,16 +1499,12 @@ with tab_land:
     with left:
         st.markdown(f"**{t('Land use category', 'Landgebruikcategorie')}**")
         if cat_ha:
-            df = pd.DataFrame({"category": list(cat_ha.keys()), "ha": list(cat_ha.values())})
-            df = df.sort_values("ha", ascending=True)
-            st.bar_chart(df.set_index("category"), horizontal=True)
+            st.altair_chart(brp_category_chart(cat_ha), use_container_width=True)
     with right:
         st.markdown(f"**{t('Top crops by area', 'Grootste gewassen naar oppervlakte')}**")
         crops = brp.get("top_crops_ha", {})
         if crops:
-            df = pd.DataFrame({"crop": list(crops.keys()), "ha": list(crops.values())})
-            df = df.sort_values("ha", ascending=True)
-            st.bar_chart(df.set_index("crop"), horizontal=True)
+            st.altair_chart(top_crops_chart(crops), use_container_width=True)
 
     st.markdown(f"**{t('All 102 crops, by family', 'Alle 102 gewassen, per familie')}**")
     st.caption(t(

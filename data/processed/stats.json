@@ -1,0 +1,2408 @@
+{
+  "optical_summer_2025": {
+    "total_px": 1985672,
+    "clear_pct": 47.0,
+    "mean_ndvi": 0.655,
+    "mean_ndwi": -0.594,
+    "source": "sentinel2",
+    "platform": "baseline 05.11"
+  },
+  "optical_summer_2024": {
+    "total_px": 1985672,
+    "clear_pct": 47.0,
+    "mean_ndvi": 0.676,
+    "mean_ndwi": -0.607,
+    "source": "sentinel2",
+    "platform": "baseline 05.11"
+  },
+  "landcover_summer_2025": {
+    "n_clusters": 6,
+    "class_pct": {
+      "Dense vegetation, mid canopy": 27.4,
+      "Grass / farmland": 11.5,
+      "Water": 5.6,
+      "Built-up / bare": 5.8,
+      "Dense vegetation, bright canopy": 23.8,
+      "Dense vegetation, dark canopy": 25.9
+    },
+    "class_ha": {
+      "Dense vegetation, mid canopy": 2557.7,
+      "Grass / farmland": 1069.6,
+      "Water": 522.1,
+      "Built-up / bare": 537.6,
+      "Dense vegetation, bright canopy": 2224.0,
+      "Dense vegetation, dark canopy": 2420.5
+    }
+  },
+  "ndvi_change": {
+    "from": "summer_2024",
+    "to": "summer_2025",
+    "mean_delta": -0.022,
+    "greening_pct": 17.8,
+    "browning_pct": 28.6
+  },
+  "sar": {
+    "label": "sar_highwater_2024",
+    "water_pct": 4.7,
+    "threshold_db": -17.0
+  },
+  "sar_optical_cross_check": {
+    "shared_px": 933157,
+    "sar_water_pct": 5.0,
+    "optical_water_pct": 5.6,
+    "iou_pct": 59.2
+  },
+  "ahn": {
+    "resolution_m": 5,
+    "elevation_min_m": 8.0,
+    "elevation_max_m": 95.1,
+    "elevation_mean_m": 31.2,
+    "ndsm_mean_m": 1.9,
+    "ndsm_over_15m_pct": 1.1
+  },
+  "flood_extent": {
+    "baseline": "sar_2025",
+    "high_water": "sar_highwater_2024",
+    "baseline_water_pct": 5.0,
+    "high_water_water_pct": 4.7,
+    "newly_flooded_pct": 2.1,
+    "newly_dry_pct": 2.3,
+    "threshold_reliable": false
+  },
+  "cbs": {
+    "year": 2024,
+    "gemeentecode": "GM1945",
+    "gemeentenaam": "Berg en Dal",
+    "population": {
+      "value": 35474,
+      "unit": "residents"
+    },
+    "population_male": {
+      "value": 17569,
+      "unit": "residents"
+    },
+    "population_female": {
+      "value": 17905,
+      "unit": "residents"
+    },
+    "households": {
+      "value": 16385,
+      "unit": "households"
+    },
+    "avg_household_size": {
+      "value": 2.1,
+      "unit": "people/household"
+    },
+    "single_person_households_pct": {
+      "value": 36,
+      "unit": "%"
+    },
+    "households_with_children_pct": {
+      "value": 31,
+      "unit": "%"
+    },
+    "housing_stock": {
+      "value": 16278,
+      "unit": "homes"
+    },
+    "new_homes_last_year": {
+      "value": 76.0,
+      "unit": "homes/yr"
+    },
+    "population_density": {
+      "value": 411,
+      "unit": "residents/km2"
+    },
+    "land_area_ha": {
+      "value": 8639,
+      "unit": "ha"
+    },
+    "water_area_ha": {
+      "value": 689,
+      "unit": "ha"
+    },
+    "homes_with_solar_pct": {
+      "value": 46.0,
+      "unit": "%"
+    },
+    "gas_free_homes_pct": {
+      "value": 6.0,
+      "unit": "%"
+    },
+    "gas_heated_homes_pct": {
+      "value": 88.0,
+      "unit": "%"
+    },
+    "avg_gas_use_m3": {
+      "value": 940,
+      "unit": "m3/yr"
+    },
+    "avg_electricity_use_kwh": {
+      "value": 2770.0,
+      "unit": "kWh/yr"
+    },
+    "avg_solar_feedback_kwh": {
+      "value": 1000.0,
+      "unit": "kWh/yr"
+    },
+    "avg_home_value_x1000eur": {
+      "value": 371,
+      "unit": "x1,000 EUR"
+    },
+    "owner_occupied_homes_pct": {
+      "value": 61,
+      "unit": "%"
+    },
+    "rented_homes_pct": {
+      "value": 39,
+      "unit": "%"
+    },
+    "single_family_homes_pct": {
+      "value": 79,
+      "unit": "%"
+    },
+    "multi_family_homes_pct": {
+      "value": 21,
+      "unit": "%"
+    },
+    "total_businesses": {
+      "value": 4420,
+      "unit": "businesses"
+    },
+    "farm_forestry_fishery_businesses": {
+      "value": 155,
+      "unit": "businesses"
+    },
+    "industry_energy_businesses": {
+      "value": 715,
+      "unit": "businesses"
+    },
+    "trade_hospitality_businesses": {
+      "value": 635,
+      "unit": "businesses"
+    },
+    "transport_ict_businesses": {
+      "value": 235,
+      "unit": "businesses"
+    },
+    "finance_realestate_businesses": {
+      "value": 240,
+      "unit": "businesses"
+    },
+    "business_services_businesses": {
+      "value": 1010,
+      "unit": "businesses"
+    },
+    "government_education_care_businesses": {
+      "value": 920,
+      "unit": "businesses"
+    },
+    "culture_recreation_other_businesses": {
+      "value": 510,
+      "unit": "businesses"
+    },
+    "population_under15_pct": {
+      "value": 13,
+      "unit": "%"
+    },
+    "population_15to25_pct": {
+      "value": 10,
+      "unit": "%"
+    },
+    "population_25to45_pct": {
+      "value": 21,
+      "unit": "%"
+    },
+    "population_45to65_pct": {
+      "value": 29,
+      "unit": "%"
+    },
+    "population_65plus_pct": {
+      "value": 26,
+      "unit": "%"
+    },
+    "births_last_year": {
+      "value": 297,
+      "unit": "births/yr"
+    },
+    "deaths_last_year": {
+      "value": 476,
+      "unit": "deaths/yr"
+    },
+    "aow_pension_recipients": {
+      "value": 8420,
+      "unit": "residents"
+    },
+    "unemployment_benefit_recipients": {
+      "value": 290,
+      "unit": "residents"
+    },
+    "welfare_benefit_recipients": {
+      "value": 770,
+      "unit": "residents"
+    }
+  },
+  "brp": {
+    "year": 2025,
+    "n_parcels": 3787,
+    "total_area_ha": 4498.9,
+    "by_category_ha": {
+      "Grasland": 1934.2,
+      "Bouwland": 1721.6,
+      "Natuurterrein": 751.6,
+      "Landschapselement": 77.2,
+      "Overige": 14.2
+    },
+    "top_crops_ha": {
+      "Grasland, blijvend": 1417.3,
+      "Natuurterreinen (incl. heide)": 751.6,
+      "Mais, snij-": 468.9,
+      "Grasland, tijdelijk": 322.6,
+      "Tarwe, winter-": 302.1,
+      "Aardappelen, consumptie": 181.5,
+      "Bieten, suiker-": 179.4,
+      "Grasland, natuurlijk. Met landbouwactiviteiten.": 149.2,
+      "Uien, gele zaai-": 57.0,
+      "Gerst, winter-": 51.1
+    }
+  },
+  "air_quality": {
+    "NO2": {
+      "mean_ug_m3": 9.5,
+      "min_ug_m3": 7.8,
+      "max_ug_m3": 16.5,
+      "who_guideline_ug_m3": 10,
+      "pct_area_over_who_guideline": 19.7,
+      "year": 2024
+    },
+    "PM10": {
+      "mean_ug_m3": 13.6,
+      "min_ug_m3": 13.2,
+      "max_ug_m3": 15.1,
+      "who_guideline_ug_m3": 15,
+      "pct_area_over_who_guideline": 0.0,
+      "year": 2024
+    },
+    "PM25": {
+      "mean_ug_m3": 8.1,
+      "min_ug_m3": 7.8,
+      "max_ug_m3": 8.9,
+      "who_guideline_ug_m3": 5,
+      "pct_area_over_who_guideline": 100.0,
+      "year": 2024
+    },
+    "NH3": {
+      "mean_ug_m3": 5.28,
+      "min_ug_m3": 4.13,
+      "max_ug_m3": 9.49,
+      "year": 2025,
+      "resolution_m": 1000,
+      "model": "OPS-pro 5.3.1.0",
+      "uncertainty_pct": "20-25",
+      "note": "Ammonia (NH3) concentration in air, not nitrogen deposition on nature areas (that figure -- mol N/ha/yr, via AERIUS/GDN -- is a separate RIVM product not included in this download and still not fetched here). No WHO guideline exists for NH3 in the way there is for NO2/PM10/PM2.5.",
+      "prior_years": {
+        "2024": {
+          "mean_ug_m3": 4.78
+        }
+      }
+    },
+    "_not_available": {
+      "NH3_deposition": "Nitrogen *deposition* (mol N/ha/yr, via RIVM's AERIUS/GDN product) is still not included -- it is a separate product from the NH3 concentration figure above, distributed through aerius.nl rather than a queryable service or the GCN download used here. Concentration is a real, useful proxy but not a substitute for an actual AERIUS deposition calculation in a permitting decision."
+    }
+  },
+  "optical_summer_2018": {
+    "total_px": 1985672,
+    "clear_pct": 47.0,
+    "mean_ndvi": 0.532,
+    "mean_ndwi": -0.552,
+    "source": "sentinel2",
+    "platform": "baseline 02.12"
+  },
+  "optical_summer_2019": {
+    "total_px": 1985672,
+    "clear_pct": 47.0,
+    "mean_ndvi": 0.625,
+    "mean_ndwi": -0.559,
+    "source": "sentinel2",
+    "platform": "baseline 02.12"
+  },
+  "optical_summer_2020": {
+    "total_px": 1985672,
+    "clear_pct": 46.9,
+    "mean_ndvi": 0.612,
+    "mean_ndwi": -0.583,
+    "source": "sentinel2",
+    "platform": "baseline 02.12"
+  },
+  "optical_summer_2021": {
+    "total_px": 1985672,
+    "clear_pct": 46.9,
+    "mean_ndvi": 0.689,
+    "mean_ndwi": -0.612,
+    "source": "sentinel2",
+    "platform": "baseline 03.00"
+  },
+  "optical_summer_2022": {
+    "total_px": 1985672,
+    "clear_pct": 46.2,
+    "mean_ndvi": 0.591,
+    "mean_ndwi": -0.571,
+    "source": "sentinel2",
+    "platform": "baseline 04.00"
+  },
+  "optical_summer_2023": {
+    "total_px": 1985672,
+    "clear_pct": 47.0,
+    "mean_ndvi": 0.688,
+    "mean_ndwi": -0.623,
+    "source": "sentinel2",
+    "platform": "baseline 05.10"
+  },
+  "ndvi_trend": {
+    "years": [
+      2005,
+      2006,
+      2007,
+      2008,
+      2009,
+      2010,
+      2011,
+      2012,
+      2013,
+      2014,
+      2015,
+      2016,
+      2017,
+      2018,
+      2019,
+      2020,
+      2021,
+      2022,
+      2023,
+      2024,
+      2025,
+      2026
+    ],
+    "mean_ndvi": [
+      0.73,
+      0.681,
+      0.726,
+      0.68,
+      0.687,
+      0.704,
+      0.64,
+      0.696,
+      0.734,
+      0.679,
+      0.694,
+      0.688,
+      0.65,
+      0.532,
+      0.625,
+      0.612,
+      0.689,
+      0.591,
+      0.688,
+      0.676,
+      0.655,
+      0.573
+    ],
+    "mean_ndwi": [
+      -0.693,
+      -0.629,
+      -0.69,
+      -0.623,
+      -0.677,
+      -0.651,
+      -0.573,
+      -0.684,
+      -0.722,
+      -0.648,
+      -0.648,
+      -0.636,
+      -0.637,
+      -0.552,
+      -0.559,
+      -0.583,
+      -0.612,
+      -0.571,
+      -0.623,
+      -0.607,
+      -0.594,
+      -0.579
+    ],
+    "clear_pct": [
+      32.4,
+      11.6,
+      32.7,
+      17.5,
+      12.8,
+      42.1,
+      1.0,
+      15.7,
+      33.1,
+      7.8,
+      46.8,
+      45.9,
+      24.7,
+      47.0,
+      47.0,
+      46.9,
+      46.9,
+      46.2,
+      47.0,
+      47.0,
+      47.0,
+      40.6
+    ],
+    "source": [
+      "landsat",
+      "landsat",
+      "landsat",
+      "landsat",
+      "landsat",
+      "landsat",
+      "landsat",
+      "landsat",
+      "landsat",
+      "landsat",
+      "landsat",
+      "landsat",
+      "landsat",
+      "sentinel2",
+      "sentinel2",
+      "sentinel2",
+      "sentinel2",
+      "sentinel2",
+      "sentinel2",
+      "sentinel2",
+      "sentinel2",
+      "sentinel2"
+    ],
+    "platform": [
+      "landsat-7",
+      "landsat-5",
+      "landsat-7",
+      "landsat-5",
+      "landsat-7",
+      "landsat-5",
+      "landsat-5",
+      "landsat-7",
+      "landsat-7",
+      "landsat-7",
+      "landsat-8",
+      "landsat-8",
+      "landsat-7",
+      "baseline 02.12",
+      "baseline 02.12",
+      "baseline 02.12",
+      "baseline 03.00",
+      "baseline 04.00",
+      "baseline 05.10",
+      "baseline 05.11",
+      "baseline 05.11",
+      "baseline 05.12"
+    ],
+    "landsat_last_year": 2017,
+    "slope_per_year": -0.0075,
+    "net_change": -0.157,
+    "updated": "2026-09-13"
+  },
+  "flood_event": {
+    "method": "change_detection_vs_reference_composite",
+    "reference_dates": [
+      "2023-11-02",
+      "2023-11-14",
+      "2023-11-26",
+      "2023-12-08"
+    ],
+    "change_threshold_db": -3.0,
+    "timeline": [
+      {
+        "date": "2023-12-23",
+        "phase": "pre-event",
+        "flooded_pct": 9.1,
+        "mean_db_vs_reference": 0.69
+      },
+      {
+        "date": "2024-01-04",
+        "phase": "rise",
+        "flooded_pct": 12.9,
+        "mean_db_vs_reference": 0.3
+      },
+      {
+        "date": "2024-01-13",
+        "phase": "recession (early)",
+        "flooded_pct": 13.0,
+        "mean_db_vs_reference": -0.43
+      },
+      {
+        "date": "2024-01-16",
+        "phase": "recession (mid)",
+        "flooded_pct": 21.2,
+        "mean_db_vs_reference": -0.82
+      },
+      {
+        "date": "2024-01-25",
+        "phase": "recession (late)",
+        "flooded_pct": 10.1,
+        "mean_db_vs_reference": -0.03
+      }
+    ],
+    "pre_event_date": "2023-12-23",
+    "pre_event_flooded_pct": 9.1,
+    "peak_date": "2024-01-16",
+    "peak_phase": "recession (mid)",
+    "peak_flooded_pct": 21.2,
+    "net_change_pct": 12.1
+  },
+  "optical_summer_2013": {
+    "total_px": 221540,
+    "clear_pct": 33.1,
+    "mean_ndvi": 0.734,
+    "mean_ndwi": -0.722,
+    "source": "landsat",
+    "platform": "landsat-7"
+  },
+  "optical_summer_2005": {
+    "total_px": 221540,
+    "clear_pct": 32.4,
+    "mean_ndvi": 0.73,
+    "mean_ndwi": -0.693,
+    "source": "landsat",
+    "platform": "landsat-7"
+  },
+  "optical_summer_2006": {
+    "total_px": 222995,
+    "clear_pct": 11.6,
+    "mean_ndvi": 0.681,
+    "mean_ndwi": -0.629,
+    "source": "landsat",
+    "platform": "landsat-5"
+  },
+  "optical_summer_2007": {
+    "total_px": 221540,
+    "clear_pct": 32.7,
+    "mean_ndvi": 0.726,
+    "mean_ndwi": -0.69,
+    "source": "landsat",
+    "platform": "landsat-7"
+  },
+  "optical_summer_2008": {
+    "total_px": 221540,
+    "clear_pct": 17.5,
+    "mean_ndvi": 0.68,
+    "mean_ndwi": -0.623,
+    "source": "landsat",
+    "platform": "landsat-5"
+  },
+  "optical_summer_2009": {
+    "total_px": 222995,
+    "clear_pct": 12.8,
+    "mean_ndvi": 0.687,
+    "mean_ndwi": -0.677,
+    "source": "landsat",
+    "platform": "landsat-7"
+  },
+  "optical_summer_2010": {
+    "total_px": 222995,
+    "clear_pct": 42.1,
+    "mean_ndvi": 0.704,
+    "mean_ndwi": -0.651,
+    "source": "landsat",
+    "platform": "landsat-5"
+  },
+  "optical_summer_2011": {
+    "total_px": 222995,
+    "clear_pct": 1.0,
+    "mean_ndvi": 0.64,
+    "mean_ndwi": -0.573,
+    "source": "landsat",
+    "platform": "landsat-5"
+  },
+  "optical_summer_2012": {
+    "total_px": 221540,
+    "clear_pct": 15.7,
+    "mean_ndvi": 0.696,
+    "mean_ndwi": -0.684,
+    "source": "landsat",
+    "platform": "landsat-7"
+  },
+  "optical_summer_2014": {
+    "total_px": 222995,
+    "clear_pct": 7.8,
+    "mean_ndvi": 0.679,
+    "mean_ndwi": -0.648,
+    "source": "landsat",
+    "platform": "landsat-7"
+  },
+  "optical_summer_2015": {
+    "total_px": 221540,
+    "clear_pct": 46.8,
+    "mean_ndvi": 0.694,
+    "mean_ndwi": -0.648,
+    "source": "landsat",
+    "platform": "landsat-8"
+  },
+  "optical_summer_2016": {
+    "total_px": 222995,
+    "clear_pct": 45.9,
+    "mean_ndvi": 0.688,
+    "mean_ndwi": -0.636,
+    "source": "landsat",
+    "platform": "landsat-8"
+  },
+  "optical_summer_2017": {
+    "total_px": 222995,
+    "clear_pct": 24.7,
+    "mean_ndvi": 0.65,
+    "mean_ndwi": -0.637,
+    "source": "landsat",
+    "platform": "landsat-7"
+  },
+  "optical_summer_2026": {
+    "total_px": 1985672,
+    "clear_pct": 40.6,
+    "mean_ndvi": 0.573,
+    "mean_ndwi": -0.579,
+    "source": "sentinel2",
+    "platform": "baseline 05.12"
+  },
+  "optical_summer_2016_s2check": {
+    "total_px": 1985672,
+    "clear_pct": 47.0,
+    "mean_ndvi": 0.639,
+    "source": "sentinel2",
+    "platform": "baseline 02.12"
+  },
+  "optical_summer_2017_s2check": {
+    "total_px": 1985672,
+    "clear_pct": 47.0,
+    "mean_ndvi": 0.64,
+    "source": "sentinel2",
+    "platform": "baseline 02.12"
+  },
+  "weather": {
+    "station": 275,
+    "station_name": "Deelen Airport",
+    "first_year": 2005,
+    "last_year": 2026,
+    "august": {
+      "years": [
+        2005,
+        2006,
+        2007,
+        2008,
+        2009,
+        2010,
+        2011,
+        2012,
+        2013,
+        2014,
+        2015,
+        2016,
+        2017,
+        2018,
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "mean_temp_c": [
+        15.7,
+        15.7,
+        16.7,
+        17.0,
+        18.4,
+        16.3,
+        16.8,
+        18.3,
+        17.8,
+        15.6,
+        18.6,
+        17.7,
+        17.2,
+        18.8,
+        18.5,
+        20.5,
+        16.5,
+        20.5,
+        17.5,
+        19.4,
+        18.3,
+        19.2
+      ],
+      "max_temp_c": [
+        29.5,
+        25.3,
+        28.7,
+        27.7,
+        35.0,
+        26.9,
+        27.7,
+        33.6,
+        35.1,
+        28.2,
+        31.9,
+        32.0,
+        29.2,
+        35.6,
+        33.4,
+        35.9,
+        25.6,
+        33.0,
+        28.1,
+        32.9,
+        33.1,
+        36.5
+      ],
+      "total_precip_mm": [
+        79.3,
+        150.5,
+        59.2,
+        57.8,
+        44.3,
+        183.2,
+        155.2,
+        66.0,
+        45.9,
+        156.1,
+        134.3,
+        48.1,
+        87.9,
+        84.1,
+        90.3,
+        39.6,
+        88.4,
+        9.1,
+        145.6,
+        49.9,
+        16.7,
+        67.3
+      ],
+      "total_sunshine_h": [
+        170.1,
+        110.1,
+        194.5,
+        154.5,
+        222.6,
+        137.6,
+        140.9,
+        216.1,
+        218.1,
+        179.2,
+        220.7,
+        232.5,
+        174.2,
+        200.7,
+        237.5,
+        215.4,
+        162.2,
+        268.8,
+        186.7,
+        236.9,
+        222.0,
+        223.9
+      ],
+      "total_evapotranspiration_mm": [
+        73.4,
+        60.4,
+        81.6,
+        71.8,
+        91.2,
+        65.7,
+        71.4,
+        91.7,
+        88.4,
+        73.1,
+        89.7,
+        85.1,
+        76.2,
+        86.6,
+        90.0,
+        93.7,
+        74.8,
+        104.5,
+        80.8,
+        95.1,
+        91.5,
+        92.0
+      ]
+    },
+    "annual": {
+      "years": [
+        2005,
+        2006,
+        2007,
+        2008,
+        2009,
+        2010,
+        2011,
+        2012,
+        2013,
+        2014,
+        2015,
+        2016,
+        2017,
+        2018,
+        2019,
+        2020,
+        2021,
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "mean_temp_c": [
+        10.3,
+        10.8,
+        10.7,
+        10.1,
+        10.1,
+        8.7,
+        10.5,
+        9.9,
+        9.4,
+        11.3,
+        10.4,
+        10.3,
+        10.5,
+        11.2,
+        10.9,
+        11.4,
+        10.0,
+        11.3,
+        11.5,
+        11.4,
+        11.0,
+        12.4
+      ],
+      "total_precip_mm": [
+        836.1,
+        772.0,
+        1003.2,
+        847.2,
+        770.2,
+        869.3,
+        985.2,
+        874.7,
+        754.8,
+        997.6,
+        1011.8,
+        867.4,
+        916.2,
+        657.2,
+        892.8,
+        794.4,
+        913.7,
+        797.8,
+        1272.8,
+        1119.6,
+        607.1,
+        474.1
+      ],
+      "total_sunshine_h": [
+        1737.8,
+        1598.3,
+        1564.8,
+        1660.6,
+        1735.4,
+        1644.9,
+        1744.4,
+        1560.3,
+        1515.1,
+        1643.2,
+        1794.6,
+        1740.3,
+        1585.7,
+        2042.5,
+        1873.6,
+        1868.4,
+        1672.5,
+        2115.9,
+        1776.6,
+        1622.5,
+        1970.2,
+        1612.1
+      ]
+    }
+  },
+  "climate_correlation": {
+    "n_years": 22,
+    "years": [
+      2005,
+      2006,
+      2007,
+      2008,
+      2009,
+      2010,
+      2011,
+      2012,
+      2013,
+      2014,
+      2015,
+      2016,
+      2017,
+      2018,
+      2019,
+      2020,
+      2021,
+      2022,
+      2023,
+      2024,
+      2025,
+      2026
+    ],
+    "correlations": {
+      "ndvi_vs_august_precip": 0.178,
+      "ndvi_vs_august_temp": -0.589,
+      "ndvi_vs_august_sunshine": -0.292,
+      "ndvi_vs_august_evapotranspiration": -0.381,
+      "ndwi_vs_august_precip": -0.034,
+      "ndwi_vs_august_temp": 0.462
+    },
+    "series": {
+      "ndvi": [
+        0.73,
+        0.681,
+        0.726,
+        0.68,
+        0.687,
+        0.704,
+        0.64,
+        0.696,
+        0.734,
+        0.679,
+        0.694,
+        0.688,
+        0.65,
+        0.532,
+        0.625,
+        0.612,
+        0.689,
+        0.591,
+        0.688,
+        0.676,
+        0.655,
+        0.573
+      ],
+      "ndwi": [
+        -0.693,
+        -0.629,
+        -0.69,
+        -0.623,
+        -0.677,
+        -0.651,
+        -0.573,
+        -0.684,
+        -0.722,
+        -0.648,
+        -0.648,
+        -0.636,
+        -0.637,
+        -0.552,
+        -0.559,
+        -0.583,
+        -0.612,
+        -0.571,
+        -0.623,
+        -0.607,
+        -0.594,
+        -0.579
+      ],
+      "august_temp_c": [
+        15.7,
+        15.7,
+        16.7,
+        17.0,
+        18.4,
+        16.3,
+        16.8,
+        18.3,
+        17.8,
+        15.6,
+        18.6,
+        17.7,
+        17.2,
+        18.8,
+        18.5,
+        20.5,
+        16.5,
+        20.5,
+        17.5,
+        19.4,
+        18.3,
+        19.2
+      ],
+      "august_precip_mm": [
+        79.3,
+        150.5,
+        59.2,
+        57.8,
+        44.3,
+        183.2,
+        155.2,
+        66.0,
+        45.9,
+        156.1,
+        134.3,
+        48.1,
+        87.9,
+        84.1,
+        90.3,
+        39.6,
+        88.4,
+        9.1,
+        145.6,
+        49.9,
+        16.7,
+        67.3
+      ],
+      "august_sunshine_h": [
+        170.1,
+        110.1,
+        194.5,
+        154.5,
+        222.6,
+        137.6,
+        140.9,
+        216.1,
+        218.1,
+        179.2,
+        220.7,
+        232.5,
+        174.2,
+        200.7,
+        237.5,
+        215.4,
+        162.2,
+        268.8,
+        186.7,
+        236.9,
+        222.0,
+        223.9
+      ],
+      "august_evapotranspiration_mm": [
+        73.4,
+        60.4,
+        81.6,
+        71.8,
+        91.2,
+        65.7,
+        71.4,
+        91.7,
+        88.4,
+        73.1,
+        89.7,
+        85.1,
+        76.2,
+        86.6,
+        90.0,
+        93.7,
+        74.8,
+        104.5,
+        80.8,
+        95.1,
+        91.5,
+        92.0
+      ]
+    }
+  },
+  "crop_rotation": {
+    "years": [
+      2020,
+      2021,
+      2022,
+      2023,
+      2024,
+      2025
+    ],
+    "min_overlap_frac": 0.3,
+    "parcels_matched_by_year": {
+      "2020": 2389,
+      "2021": 2446,
+      "2022": 2366,
+      "2023": 3540,
+      "2024": 3683,
+      "2025": 3787
+    },
+    "n_parcels_full_history": 2189,
+    "pct_stable_full_history": 37.9,
+    "top_transitions": {
+      "Grasland, tijdelijk -> Grasland, blijvend": 163,
+      "Bieten, suiker- -> Tarwe, winter-": 142,
+      "Grasland, natuurlijk. Hoofdfunctie landbouw. -> Grasland, natuurlijk. Met landbouwactiviteiten.": 128,
+      "Tarwe, winter- -> Bieten, suiker-": 114,
+      "Ma\u00efs, snij- -> Grasland, tijdelijk": 96,
+      "Aardappelen, consumptie -> Tarwe, winter-": 74,
+      "Grasland, blijvend -> Grasland, tijdelijk": 65,
+      "Aardappelen, consumptie -> Mais, snij-": 59,
+      "Ma\u00efs, snij- -> Tarwe, winter-": 58,
+      "Tarwe, winter- -> Aardappelen, consumptie": 53
+    }
+  },
+  "landcover_summer_2018": {
+    "n_clusters": 6,
+    "class_pct": {
+      "Built-up / bare": 5.7,
+      "Dense vegetation, dark canopy": 25.6,
+      "Grass / farmland": 18.0,
+      "Water": 5.1,
+      "Dense vegetation, mid canopy": 15.2,
+      "Dense vegetation, bright canopy": 30.4
+    },
+    "class_ha": {
+      "Built-up / bare": 529.5,
+      "Dense vegetation, dark canopy": 2387.1,
+      "Grass / farmland": 1678.1,
+      "Water": 475.7,
+      "Dense vegetation, mid canopy": 1421.9,
+      "Dense vegetation, bright canopy": 2832.8
+    }
+  },
+  "landcover_summer_2019": {
+    "n_clusters": 6,
+    "class_pct": {
+      "Dense vegetation, dark canopy": 24.3,
+      "Grass / farmland": 10.8,
+      "Dense vegetation, bright canopy": 22.9,
+      "Dense vegetation, mid canopy": 34.3,
+      "Water": 5.8,
+      "Built-up / bare": 2.0
+    },
+    "class_ha": {
+      "Dense vegetation, dark canopy": 2262.7,
+      "Grass / farmland": 1002.8,
+      "Dense vegetation, bright canopy": 2136.0,
+      "Dense vegetation, mid canopy": 3198.6,
+      "Water": 538.1,
+      "Built-up / bare": 187.3
+    }
+  },
+  "landcover_summer_2020": {
+    "n_clusters": 6,
+    "class_pct": {
+      "Dense vegetation, dark canopy": 26.8,
+      "Built-up / bare": 4.9,
+      "Dense vegetation, bright canopy": 26.2,
+      "Water": 5.2,
+      "Grass / farmland": 17.4,
+      "Dense vegetation, mid canopy": 19.6
+    },
+    "class_ha": {
+      "Dense vegetation, dark canopy": 2496.3,
+      "Built-up / bare": 456.6,
+      "Dense vegetation, bright canopy": 2442.9,
+      "Water": 481.0,
+      "Grass / farmland": 1621.9,
+      "Dense vegetation, mid canopy": 1823.9
+    }
+  },
+  "landcover_summer_2021": {
+    "n_clusters": 6,
+    "class_pct": {
+      "Grass / farmland": 10.2,
+      "Dense vegetation, dark canopy": 29.9,
+      "Water": 5.9,
+      "Dense vegetation, bright canopy": 20.7,
+      "Dense vegetation, mid canopy": 29.9,
+      "Built-up / bare": 3.4
+    },
+    "class_ha": {
+      "Grass / farmland": 954.2,
+      "Dense vegetation, dark canopy": 2791.0,
+      "Water": 549.1,
+      "Dense vegetation, bright canopy": 1928.4,
+      "Dense vegetation, mid canopy": 2782.1,
+      "Built-up / bare": 315.1
+    }
+  },
+  "landcover_summer_2022": {
+    "n_clusters": 6,
+    "class_pct": {
+      "Dense vegetation, mid canopy": 25.3,
+      "Built-up / bare": 1.5,
+      "Grass / farmland": 11.8,
+      "Water": 5.1,
+      "Dense vegetation, dark canopy": 25.5,
+      "Dense vegetation, bright canopy": 30.9
+    },
+    "class_ha": {
+      "Dense vegetation, mid canopy": 2319.8,
+      "Built-up / bare": 134.4,
+      "Grass / farmland": 1082.3,
+      "Water": 471.2,
+      "Dense vegetation, dark canopy": 2336.7,
+      "Dense vegetation, bright canopy": 2834.1
+    }
+  },
+  "landcover_summer_2023": {
+    "n_clusters": 6,
+    "class_pct": {
+      "Built-up / bare": 1.0,
+      "Dense vegetation, mid canopy": 30.9,
+      "Water": 5.5,
+      "Grass / farmland": 10.5,
+      "Dense vegetation, bright canopy": 21.1,
+      "Dense vegetation, dark canopy": 31.0
+    },
+    "class_ha": {
+      "Built-up / bare": 92.8,
+      "Dense vegetation, mid canopy": 2886.7,
+      "Water": 515.1,
+      "Grass / farmland": 980.3,
+      "Dense vegetation, bright canopy": 1965.1,
+      "Dense vegetation, dark canopy": 2891.5
+    }
+  },
+  "landcover_summer_2024": {
+    "n_clusters": 6,
+    "class_pct": {
+      "Dense vegetation, mid canopy": 30.9,
+      "Grass / farmland": 9.6,
+      "Water": 5.8,
+      "Built-up / bare": 2.7,
+      "Dense vegetation, bright canopy": 21.6,
+      "Dense vegetation, dark canopy": 29.5
+    },
+    "class_ha": {
+      "Dense vegetation, mid canopy": 2881.0,
+      "Grass / farmland": 894.5,
+      "Water": 536.9,
+      "Built-up / bare": 253.7,
+      "Dense vegetation, bright canopy": 2011.5,
+      "Dense vegetation, dark canopy": 2753.9
+    }
+  },
+  "landcover_summer_2026": {
+    "n_clusters": 6,
+    "class_pct": {
+      "Dense vegetation, bright canopy": 28.1,
+      "Dense vegetation, mid canopy": 17.4,
+      "Built-up / bare": 4.4,
+      "Water": 3.3,
+      "Grass / farmland": 17.6,
+      "Dense vegetation, dark canopy": 29.1
+    },
+    "class_ha": {
+      "Dense vegetation, bright canopy": 2268.8,
+      "Dense vegetation, mid canopy": 1403.7,
+      "Built-up / bare": 357.1,
+      "Water": 268.3,
+      "Grass / farmland": 1420.1,
+      "Dense vegetation, dark canopy": 2345.3
+    }
+  },
+  "landcover_trend": {
+    "years": [
+      2018,
+      2019,
+      2020,
+      2021,
+      2022,
+      2023,
+      2024,
+      2025,
+      2026
+    ],
+    "clear_pct": [
+      47.0,
+      47.0,
+      46.9,
+      46.9,
+      46.2,
+      47.0,
+      47.0,
+      47.0,
+      40.6
+    ],
+    "common_footprint_ha": 7891.9,
+    "series_ha": {
+      "Built-up": [
+        405.9,
+        140.4,
+        357.4,
+        237.4,
+        79.7,
+        51.6,
+        191.7,
+        418.9,
+        342.2
+      ],
+      "Agriculture": [
+        1366.3,
+        839.1,
+        1370.0,
+        773.0,
+        895.9,
+        799.7,
+        724.1,
+        875.8,
+        1393.2
+      ],
+      "Water": [
+        305.9,
+        344.8,
+        303.3,
+        343.4,
+        292.4,
+        321.0,
+        333.2,
+        321.7,
+        267.5
+      ],
+      "Forest / dense vegetation": [
+        5813.9,
+        6567.6,
+        5861.2,
+        6538.1,
+        6623.9,
+        6719.7,
+        6643.0,
+        6275.5,
+        5889.1
+      ]
+    },
+    "change": {
+      "Built-up": {
+        "start_ha": 405.9,
+        "end_ha": 342.2,
+        "net_ha": -63.7,
+        "net_pct": -15.7
+      },
+      "Agriculture": {
+        "start_ha": 1366.3,
+        "end_ha": 1393.2,
+        "net_ha": 26.9,
+        "net_pct": 2.0
+      },
+      "Water": {
+        "start_ha": 305.9,
+        "end_ha": 267.5,
+        "net_ha": -38.4,
+        "net_pct": -12.6
+      },
+      "Forest / dense vegetation": {
+        "start_ha": 5813.9,
+        "end_ha": 5889.1,
+        "net_ha": 75.2,
+        "net_pct": 1.3
+      }
+    }
+  },
+  "air_quality_trend": {
+    "series": {
+      "NO2": {
+        "years": [
+          2013,
+          2014,
+          2015,
+          2016,
+          2017,
+          2018,
+          2019,
+          2020,
+          2021,
+          2022,
+          2023,
+          2024
+        ],
+        "mean_ug_m3": [
+          18.1,
+          17.3,
+          16.9,
+          16.9,
+          17.3,
+          15.9,
+          14.9,
+          5.5,
+          12.1,
+          11.9,
+          9.6,
+          9.5
+        ]
+      },
+      "PM10": {
+        "years": [
+          2013,
+          2014,
+          2015,
+          2016,
+          2017,
+          2018,
+          2019,
+          2020,
+          2021,
+          2022,
+          2023,
+          2024
+        ],
+        "mean_ug_m3": [
+          21.5,
+          21.1,
+          18.9,
+          17.8,
+          17.7,
+          18.4,
+          16.6,
+          7.0,
+          15.7,
+          16.2,
+          14.4,
+          13.6
+        ]
+      },
+      "PM25": {
+        "years": [
+          2013,
+          2014,
+          2015,
+          2016,
+          2017,
+          2018,
+          2019,
+          2020,
+          2021,
+          2022,
+          2023,
+          2024
+        ],
+        "mean_ug_m3": [
+          14.2,
+          13.8,
+          11.5,
+          11.4,
+          11.1,
+          11.6,
+          10.0,
+          8.0,
+          9.2,
+          9.0,
+          8.1,
+          8.1
+        ]
+      },
+      "EC": {
+        "years": [
+          2013,
+          2014,
+          2015,
+          2016,
+          2017,
+          2018,
+          2019,
+          2020,
+          2021,
+          2022,
+          2024
+        ],
+        "mean_ug_m3": [
+          0.8,
+          0.8,
+          0.7,
+          0.8,
+          0.7,
+          0.8,
+          0.6,
+          0.4,
+          0.3,
+          0.3,
+          0.2
+        ]
+      }
+    },
+    "note": "EC (elemental carbon / soot) is the closest real combustion proxy this free service offers -- not a CO2 or NH3 number. Municipal CO2/GHG (Klimaatmonitor) requires an authenticated login (confirmed: 401 on its OData API); NH3/nitrogen deposition (RIVM GDN/AERIUS) has no public WCS/WFS at all -- both checked directly, not assumed."
+  },
+  "villages": {
+    "year": 2024,
+    "list": [
+      {
+        "name": "Groesbeek",
+        "population": 13230,
+        "households": 6125,
+        "land_area_ha": 2368.0,
+        "density_per_km2": 559
+      },
+      {
+        "name": "Millingen aan de Rijn",
+        "population": 5835,
+        "households": 2605,
+        "land_area_ha": 852.0,
+        "density_per_km2": 685
+      },
+      {
+        "name": "Beek",
+        "population": 3615,
+        "households": 1715,
+        "land_area_ha": 414.0,
+        "density_per_km2": 873
+      },
+      {
+        "name": "Ooij",
+        "population": 2555,
+        "households": 1175,
+        "land_area_ha": 999.0,
+        "density_per_km2": 256
+      },
+      {
+        "name": "Breedeweg",
+        "population": 2550,
+        "households": 1135,
+        "land_area_ha": 545.0,
+        "density_per_km2": 469
+      },
+      {
+        "name": "Berg en Dal",
+        "population": 2500,
+        "households": 1290,
+        "land_area_ha": 785.0,
+        "density_per_km2": 318
+      },
+      {
+        "name": "Leuth",
+        "population": 1735,
+        "households": 810,
+        "land_area_ha": 566.0,
+        "density_per_km2": 306
+      },
+      {
+        "name": "De Horst",
+        "population": 1380,
+        "households": 550,
+        "land_area_ha": 675.0,
+        "density_per_km2": 204
+      },
+      {
+        "name": "Heilig Landstichting",
+        "population": 850,
+        "households": 365,
+        "land_area_ha": 227.0,
+        "density_per_km2": 375
+      },
+      {
+        "name": "Ubbergen",
+        "population": 480,
+        "households": 265,
+        "land_area_ha": 78.0,
+        "density_per_km2": 619
+      },
+      {
+        "name": "Kekerdom",
+        "population": 480,
+        "households": 240,
+        "land_area_ha": 429.0,
+        "density_per_km2": 112
+      },
+      {
+        "name": "Erlecom",
+        "population": 170,
+        "households": 65,
+        "land_area_ha": 315.0,
+        "density_per_km2": 54
+      },
+      {
+        "name": "Persingen",
+        "population": 90,
+        "households": 40,
+        "land_area_ha": 387.0,
+        "density_per_km2": 24
+      }
+    ]
+  },
+  "cbs_trend": {
+    "years": [
+      2018,
+      2019,
+      2022,
+      2023,
+      2024
+    ],
+    "population": [
+      34748,
+      34798,
+      34951,
+      35420,
+      35474
+    ],
+    "households": [
+      15602,
+      15702,
+      15911,
+      16212,
+      16385
+    ],
+    "housing_stock": [
+      15519,
+      15645,
+      15920,
+      16082,
+      16278
+    ]
+  },
+  "soil": {
+    "depth": "0-5cm",
+    "n_points_sampled": 40,
+    "n_points_null": 3,
+    "properties": {
+      "soc": {
+        "label": "Soil organic carbon",
+        "unit": "g/kg",
+        "mean": 61.49,
+        "n": 37
+      },
+      "phh2o": {
+        "label": "pH (in water)",
+        "unit": "pH",
+        "mean": 5.82,
+        "n": 37
+      },
+      "nitrogen": {
+        "label": "Total nitrogen",
+        "unit": "g/kg",
+        "mean": 4.36,
+        "n": 37
+      },
+      "clay": {
+        "label": "Clay content",
+        "unit": "%",
+        "mean": 21.94,
+        "n": 37
+      },
+      "sand": {
+        "label": "Sand content",
+        "unit": "%",
+        "mean": 35.14,
+        "n": 37
+      },
+      "silt": {
+        "label": "Silt content",
+        "unit": "%",
+        "mean": 42.91,
+        "n": 37
+      },
+      "bdod": {
+        "label": "Bulk density",
+        "unit": "kg/dm3",
+        "mean": 1.06,
+        "n": 37
+      },
+      "cec": {
+        "label": "Cation exchange capacity",
+        "unit": "cmol(c)/kg",
+        "mean": 27.78,
+        "n": 37
+      }
+    }
+  },
+  "forecast": {
+    "years_ahead": 5,
+    "vegetation": {
+      "ndvi": {
+        "history_years": [
+          2005,
+          2006,
+          2007,
+          2008,
+          2009,
+          2010,
+          2011,
+          2012,
+          2013,
+          2014,
+          2015,
+          2016,
+          2017,
+          2018,
+          2019,
+          2020,
+          2021,
+          2022,
+          2023,
+          2024,
+          2025,
+          2026
+        ],
+        "history_values": [
+          0.73,
+          0.681,
+          0.726,
+          0.68,
+          0.687,
+          0.704,
+          0.64,
+          0.696,
+          0.734,
+          0.679,
+          0.694,
+          0.688,
+          0.65,
+          0.532,
+          0.625,
+          0.612,
+          0.689,
+          0.591,
+          0.688,
+          0.676,
+          0.655,
+          0.573
+        ],
+        "future_years": [
+          2027,
+          2028,
+          2029,
+          2030,
+          2031
+        ],
+        "future_values": [
+          0.6144415584415572,
+          0.6100451722190847,
+          0.6056487859966104,
+          0.6012523997741379,
+          0.5968560135516636
+        ],
+        "future_lower80": [
+          0.5506177778017699,
+          0.5455015517415629,
+          0.5403342910946138,
+          0.535117780435811,
+          0.5298538282401848
+        ],
+        "future_upper80": [
+          0.6782653390813446,
+          0.6745887926966065,
+          0.670963280898607,
+          0.6673870191124648,
+          0.6638581988631425
+        ],
+        "slope_per_year": -0.0044,
+        "intercept": 9.525916431394695,
+        "r_squared": 0.306,
+        "n_points": 22
+      },
+      "ndwi": {
+        "history_years": [
+          2005,
+          2006,
+          2007,
+          2008,
+          2009,
+          2010,
+          2011,
+          2012,
+          2013,
+          2014,
+          2015,
+          2016,
+          2017,
+          2018,
+          2019,
+          2020,
+          2021,
+          2022,
+          2023,
+          2024,
+          2025,
+          2026
+        ],
+        "history_values": [
+          -0.693,
+          -0.629,
+          -0.69,
+          -0.623,
+          -0.677,
+          -0.651,
+          -0.573,
+          -0.684,
+          -0.722,
+          -0.648,
+          -0.648,
+          -0.636,
+          -0.637,
+          -0.552,
+          -0.559,
+          -0.583,
+          -0.612,
+          -0.571,
+          -0.623,
+          -0.607,
+          -0.594,
+          -0.579
+        ],
+        "future_years": [
+          2027,
+          2028,
+          2029,
+          2030,
+          2031
+        ],
+        "future_values": [
+          -0.575194805194803,
+          -0.570701863354035,
+          -0.5662089215132671,
+          -0.5617159796724991,
+          -0.5572230378317311
+        ],
+        "future_lower80": [
+          -0.630505085389443,
+          -0.6266359634277427,
+          -0.6228110685121988,
+          -0.619028854113666,
+          -0.6152877529909087
+        ],
+        "future_upper80": [
+          -0.519884525000163,
+          -0.5147677632803274,
+          -0.5096067745143353,
+          -0.5044031052313321,
+          -0.49915832267255356
+        ],
+        "slope_per_year": 0.00449,
+        "intercept": -9.682387916431395,
+        "r_squared": 0.38,
+        "n_points": 22
+      }
+    },
+    "landcover": {
+      "Built-up": {
+        "history_years": [
+          2018,
+          2019,
+          2020,
+          2021,
+          2022,
+          2023,
+          2024,
+          2025,
+          2026
+        ],
+        "history_values": [
+          405.9,
+          140.4,
+          357.4,
+          237.4,
+          79.7,
+          51.6,
+          191.7,
+          418.9,
+          342.2
+        ],
+        "future_years": [
+          2027,
+          2028,
+          2029,
+          2030,
+          2031
+        ],
+        "future_values": [
+          252.5361111111115,
+          253.5944444444449,
+          254.65277777777783,
+          255.71111111111122,
+          256.7694444444446
+        ],
+        "future_lower80": [
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "future_upper80": [
+          514.174995503473,
+          530.4870130070719,
+          548.5535174944355,
+          568.0880575531429,
+          588.8456858598117
+        ],
+        "slope_per_year": 1.05833,
+        "intercept": -1892.705555555557,
+        "r_squared": 0.0,
+        "n_points": 9
+      },
+      "Forest / dense vegetation": {
+        "history_years": [
+          2018,
+          2019,
+          2020,
+          2021,
+          2022,
+          2023,
+          2024,
+          2025,
+          2026
+        ],
+        "history_values": [
+          5813.9,
+          6567.6,
+          5861.2,
+          6538.1,
+          6623.9,
+          6719.7,
+          6643.0,
+          6275.5,
+          5889.1
+        ],
+        "future_years": [
+          2027,
+          2028,
+          2029,
+          2030,
+          2031
+        ],
+        "future_values": [
+          6423.252777777787,
+          6442.747777777782,
+          6462.242777777785,
+          6481.73777777778,
+          6501.232777777783
+        ],
+        "future_lower80": [
+          5731.072528408987,
+          5710.213056873575,
+          5684.711992247918,
+          5655.327157707034,
+          5622.706575045459
+        ],
+        "future_upper80": [
+          7115.433027146587,
+          7175.28249868199,
+          7239.773563307652,
+          7308.148397848527,
+          7379.758980510106
+        ],
+        "slope_per_year": 19.495,
+        "intercept": -33093.11222222225,
+        "r_squared": 0.02,
+        "n_points": 9
+      },
+      "Agriculture": {
+        "history_years": [
+          2018,
+          2019,
+          2020,
+          2021,
+          2022,
+          2023,
+          2024,
+          2025,
+          2026
+        ],
+        "history_values": [
+          1366.3,
+          839.1,
+          1370.0,
+          773.0,
+          895.9,
+          799.7,
+          724.1,
+          875.8,
+          1393.2
+        ],
+        "future_years": [
+          2027,
+          2028,
+          2029,
+          2030,
+          2031
+        ],
+        "future_values": [
+          916.8388888888803,
+          899.3822222222152,
+          881.9255555555501,
+          864.468888888885,
+          847.0122222222199
+        ],
+        "future_lower80": [
+          393.35245275653574,
+          345.3762523335429,
+          293.88967867033045,
+          239.46586304806135,
+          182.59489546866735
+        ],
+        "future_upper80": [
+          1440.325325021225,
+          1453.3881921108875,
+          1469.9614324407698,
+          1489.4719147297087,
+          1511.4295489757724
+        ],
+        "slope_per_year": -17.45667,
+        "intercept": 36301.50222222221,
+        "r_squared": 0.028,
+        "n_points": 9
+      },
+      "Water": {
+        "history_years": [
+          2018,
+          2019,
+          2020,
+          2021,
+          2022,
+          2023,
+          2024,
+          2025,
+          2026
+        ],
+        "history_values": [
+          305.9,
+          344.8,
+          303.3,
+          343.4,
+          292.4,
+          321.0,
+          333.2,
+          321.7,
+          267.5
+        ],
+        "future_years": [
+          2027,
+          2028,
+          2029,
+          2030,
+          2031
+        ],
+        "future_values": [
+          299.34166666666715,
+          296.25,
+          293.15833333333376,
+          290.0666666666666,
+          286.97500000000036
+        ],
+        "future_lower80": [
+          254.90279696230263,
+          249.2203208869796,
+          243.23984851553882,
+          237.01003307864335,
+          230.5724784159287
+        ],
+        "future_upper80": [
+          343.78053637103164,
+          343.2796791130204,
+          343.0768181511287,
+          343.12330025468987,
+          343.37752158407204
+        ],
+        "slope_per_year": -3.09167,
+        "intercept": 6566.150000000001,
+        "r_squared": 0.113,
+        "n_points": 9
+      }
+    },
+    "population": {
+      "population": {
+        "history_years": [
+          2018,
+          2019,
+          2022,
+          2023,
+          2024
+        ],
+        "history_values": [
+          34748.0,
+          34798.0,
+          34951.0,
+          35420.0,
+          35474.0
+        ],
+        "future_years": [
+          2025,
+          2026,
+          2027,
+          2028,
+          2029
+        ],
+        "future_values": [
+          35545.37313432834,
+          35668.3134328358,
+          35791.253731343255,
+          35914.19402985071,
+          36037.13432835817
+        ],
+        "future_lower80": [
+          35210.47365052777,
+          35303.81886637053,
+          35393.29827231007,
+          35479.804297669216,
+          35564.02338456812
+        ],
+        "future_upper80": [
+          35880.27261812892,
+          36032.80799930107,
+          36189.20919037644,
+          36348.583762032205,
+          36510.24527214821
+        ],
+        "slope_per_year": 122.9403,
+        "intercept": -213408.73134328355,
+        "r_squared": 0.849,
+        "n_points": 5
+      },
+      "housing_stock": {
+        "history_years": [
+          2018,
+          2019,
+          2022,
+          2023,
+          2024
+        ],
+        "history_values": [
+          15519.0,
+          15645.0,
+          15920.0,
+          16082.0,
+          16278.0
+        ],
+        "future_years": [
+          2025,
+          2026,
+          2027,
+          2028,
+          2029
+        ],
+        "future_values": [
+          16340.007462686539,
+          16458.746268656687,
+          16577.485074626835,
+          16696.223880596983,
+          16814.96268656713
+        ],
+        "future_lower80": [
+          16227.679817043454,
+          16336.492223842688,
+          16444.00801077257,
+          16550.52650491356,
+          16656.277943787536
+        ],
+        "future_upper80": [
+          16452.335108329622,
+          16581.000313470686,
+          16710.9621384811,
+          16841.921256280406,
+          16973.647429346725
+        ],
+        "slope_per_year": 118.73881,
+        "intercept": -224106.07462686568,
+        "r_squared": 0.979,
+        "n_points": 5
+      }
+    },
+    "crop_rotation": {
+      "transition_matrix": {
+        "nature": {
+          "nature": 0.9794,
+          "grassland": 0.0084,
+          "cereals": 0.0039,
+          "cover": 0.0026,
+          "other": 0.0019,
+          "maize": 0.0019,
+          "root": 0.0013,
+          "vegetables": 0.0006
+        },
+        "grassland": {
+          "grassland": 0.9151,
+          "nature": 0.0336,
+          "maize": 0.0225,
+          "root": 0.0146,
+          "cereals": 0.0051,
+          "other": 0.0035,
+          "cover": 0.0021,
+          "fruit": 0.0021,
+          "vegetables": 0.0015
+        },
+        "maize": {
+          "maize": 0.4877,
+          "cereals": 0.1483,
+          "root": 0.1308,
+          "grassland": 0.1142,
+          "nature": 0.046,
+          "cover": 0.0325,
+          "other": 0.023,
+          "vegetables": 0.0167,
+          "fruit": 0.0008
+        },
+        "cereals": {
+          "root": 0.3534,
+          "cereals": 0.1897,
+          "maize": 0.1724,
+          "cover": 0.1034,
+          "other": 0.0567,
+          "grassland": 0.0567,
+          "nature": 0.0369,
+          "vegetables": 0.0296,
+          "fruit": 0.0012
+        },
+        "root": {
+          "cereals": 0.4057,
+          "maize": 0.2244,
+          "root": 0.1418,
+          "grassland": 0.0617,
+          "cover": 0.0506,
+          "vegetables": 0.0432,
+          "nature": 0.0395,
+          "other": 0.0333
+        },
+        "vegetables": {
+          "vegetables": 0.545,
+          "root": 0.1852,
+          "cereals": 0.1058,
+          "maize": 0.0582,
+          "other": 0.0423,
+          "nature": 0.0265,
+          "cover": 0.0212,
+          "grassland": 0.0159
+        },
+        "other": {
+          "other": 0.6679,
+          "cereals": 0.1007,
+          "root": 0.0821,
+          "vegetables": 0.056,
+          "cover": 0.0299,
+          "nature": 0.0224,
+          "maize": 0.0224,
+          "grassland": 0.0112,
+          "fruit": 0.0075
+        },
+        "cover": {
+          "cover": 0.4463,
+          "root": 0.2114,
+          "cereals": 0.1174,
+          "grassland": 0.0738,
+          "maize": 0.0537,
+          "nature": 0.0436,
+          "other": 0.0403,
+          "vegetables": 0.0134
+        },
+        "fruit": {
+          "fruit": 0.9492,
+          "grassland": 0.0254,
+          "nature": 0.0102,
+          "other": 0.0102,
+          "maize": 0.0051
+        }
+      },
+      "transition_counts": {
+        "nature": {
+          "nature": 3047,
+          "cereals": 12,
+          "other": 6,
+          "grassland": 26,
+          "maize": 6,
+          "cover": 8,
+          "root": 4,
+          "vegetables": 2
+        },
+        "grassland": {
+          "grassland": 6842,
+          "maize": 168,
+          "nature": 251,
+          "cereals": 38,
+          "cover": 16,
+          "root": 109,
+          "other": 26,
+          "fruit": 16,
+          "vegetables": 11
+        },
+        "maize": {
+          "maize": 615,
+          "cereals": 187,
+          "root": 165,
+          "grassland": 144,
+          "nature": 58,
+          "cover": 41,
+          "other": 29,
+          "vegetables": 21,
+          "fruit": 1
+        },
+        "cereals": {
+          "maize": 140,
+          "root": 287,
+          "cereals": 154,
+          "other": 46,
+          "cover": 84,
+          "vegetables": 24,
+          "nature": 30,
+          "fruit": 1,
+          "grassland": 46
+        },
+        "root": {
+          "cereals": 329,
+          "maize": 182,
+          "root": 115,
+          "vegetables": 35,
+          "nature": 32,
+          "grassland": 50,
+          "other": 27,
+          "cover": 41
+        },
+        "vegetables": {
+          "vegetables": 103,
+          "root": 35,
+          "other": 8,
+          "cereals": 20,
+          "grassland": 3,
+          "maize": 11,
+          "nature": 5,
+          "cover": 4
+        },
+        "other": {
+          "cereals": 27,
+          "other": 179,
+          "cover": 8,
+          "root": 22,
+          "grassland": 3,
+          "vegetables": 15,
+          "nature": 6,
+          "fruit": 2,
+          "maize": 6
+        },
+        "cover": {
+          "root": 63,
+          "cover": 133,
+          "other": 12,
+          "cereals": 35,
+          "grassland": 22,
+          "maize": 16,
+          "nature": 13,
+          "vegetables": 4
+        },
+        "fruit": {
+          "fruit": 187,
+          "grassland": 5,
+          "nature": 2,
+          "other": 2,
+          "maize": 1
+        }
+      },
+      "n_transitions_observed": 14424,
+      "n_fields_with_prediction": 3787,
+      "projected_area_ha_next_year": {
+        "grassland": 1876.4,
+        "nature": 986.0,
+        "maize": 485.6,
+        "cereals": 399.7,
+        "root": 360.8,
+        "cover": 159.9,
+        "vegetables": 89.9,
+        "other": 85.1,
+        "fruit": 55.6
+      }
+    }
+  },
+  "landcover_change_map": {
+    "first_year": 2018,
+    "last_year": 2026,
+    "common_valid_ha": 8057.5,
+    "ha": {
+      "No change": 6300.6,
+      "Forest loss": 713.5,
+      "Forest gain": 788.8,
+      "Built-up growth": 104.0,
+      "Other change": 150.8
+    }
+  }
+}

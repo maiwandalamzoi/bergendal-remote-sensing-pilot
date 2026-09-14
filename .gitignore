@@ -3,8 +3,18 @@ __pycache__/
 *.pyc
 
 # Raw and intermediate rasters are large and fully reproducible from
-# run_pipeline.py -- don't version them.
+# run_pipeline.py -- don't version them. stats.json is the one exception:
+# it's small (tens of KB, pure JSON, no rasters) and is what every KPI
+# card, chart, and text caption on the dashboard actually reads -- keeping
+# it versioned means a fresh clone/deploy (e.g. Streamlit Community Cloud)
+# shows real, current numbers immediately, with only the interactive map
+# (which reads the actual rasters below) degrading gracefully until
+# someone runs the full pipeline locally. `data/processed/*` (not
+# `data/processed/`) is deliberate -- a trailing-slash directory pattern
+# stops git from ever looking inside it, which would make the `!` negation
+# below silently do nothing.
 data/raw/
-data/processed/
+data/processed/*
+!data/processed/stats.json
 outputs/*.png
 outputs/*.html

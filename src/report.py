@@ -16,6 +16,11 @@ import io
 import math
 from pathlib import Path
 
+import fitz  # PyMuPDF -- used only for the post-build pass that adds real
+             # clickable navigation (a Contents outline/bookmark panel, and
+             # link rectangles on the cover page's own TOC text and each
+             # layer page's back-link); matplotlib's own PDF backend has no
+             # support for internal page-jump links, only external URLs.
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
@@ -129,6 +134,11 @@ def _layer_page(pdf: PdfPages, title: str, subtitle: str, png_path: Path, bounds
 
     fig.suptitle(title, fontsize=15, fontweight="bold", x=0.06, ha="left", y=0.97)
     fig.text(0.06, 0.935, subtitle, fontsize=9, color="#51604F")
+    # Text only, here -- the real clickable link rectangle jumping back to
+    # the cover page's contents is added in the post-build fitz pass below,
+    # since matplotlib's PDF backend has no internal-link support of its own.
+    fig.text(0.94, 0.965, ("◂ Contents" if lang == "en" else "◂ Inhoud"), fontsize=9,
+              ha="right", color="#3B6E8A")
     fig.text(0.06, 0.02,
               ("Berg en Dal remote-sensing pilot -- real satellite/LiDAR/registry data, "
                if lang == "en" else
@@ -247,4 +257,37 @@ def build_report_pdf(selected_keys: list[str], lang: str = "en") -> bytes:
             else:
                 _layer_page(pdf, title, "", path, bounds, "none", None, lang)
 
-    return buf.getvalue()
+    return _add_navigation(buf.getvalue(), layer_titles, toc_top, step, lang)
+
+
+def _add_navigation(pdf_bytes: bytes, layer_titles: list[str], toc_top: float, step: float, lang: str) -> bytes:
+    """Post-build pass: a real Contents outline (the bookmark panel every
+    PDF viewer shows) plus clickable link rectangles over the cover page's
+    own TOC lines and each layer page's "Contents" back-link text --
+    matplotlib's PDF backend can't create internal page-jump links itself,
+    only fitz's page.insert_link() can, so this has to happen as a second
+    pass over the already-rendered bytes rather than while matplotlib is
+    drawing."""
+    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+    n_pages = doc.page_count  # cover (0) + one per layer
+
+    toc = [[1, ("Contents" if lang == "en" else "Inhoud"), 1]]
+    toc += [[1, title, i + 2] for i, title in enumerate(layer_titles)]
+    doc.set_toc(toc)
+
+    cover = doc[0]
+    page_w, page_h = cover.rect.width, cover.rect.height
+    for i in range(len(layer_titles)):
+        y_frac = toc_top - i * step
+        y_pt = (1 - y_frac) * page_h
+        rect = fitz.Rect(0.12 * page_w, y_pt - 11, 0.88 * page_w, y_pt + 9)
+        cover.insert_link({"kind": fitz.LINK_GOTO, "page": i + 1, "from": rect, "to": fitz.Point(0, 0)})
+
+    for i in range(1, n_pages):
+        page = doc[i]
+        pw, ph = page.rect.width, page.rect.height
+        y_pt = (1 - 0.965) * ph
+        rect = fitz.Rect(0.80 * pw, y_pt - 10, 0.98 * pw, y_pt + 10)
+        page.insert_link({"kind": fitz.LINK_GOTO, "page": 0, "from": rect, "to": fitz.Point(0, 0)})
+
+    return doc.tobytes()

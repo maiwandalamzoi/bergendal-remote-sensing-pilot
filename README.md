@@ -28,6 +28,10 @@ streamlit run dashboard.py     # headline numbers + embedded map
 
 or open `outputs/bergendal_map.html` directly in a browser for just the map.
 
+To put this behind a real, shareable URL instead of `localhost`, see
+**`DEPLOY.md`** — Streamlit Community Cloud, prepared but not deployed
+from here (needs your own GitHub/Streamlit accounts for the last step).
+
 ## What it does
 
 1. **AOI** (`src/aoi.py`) — the official municipal boundary (Kadaster/CBS
@@ -892,3 +896,53 @@ ratio -- fixed by switching to a fixed-size marker instead), and the
 cover page's table of contents could overlap its own footer when many
 layers were selected (a fixed per-line step regardless of item count --
 fixed by computing the step from how many lines actually need to fit).
+
+**The report is now clickable, not just paginated.** matplotlib's own
+PDF backend has no support for internal page-jump links -- only
+external URLs -- so `_add_navigation()` reopens the finished PDF bytes
+with PyMuPDF (`fitz`, added to `requirements.txt`) and adds: a real
+Contents outline (the bookmark panel every PDF viewer shows, one entry
+per layer, jumping straight to its page), a clickable link rectangle
+over each line of the cover page's own table of contents, and a
+"◂ Contents" link back to the cover on every layer page. Verified by
+inspecting the actual link objects PyMuPDF wrote (`page.get_links()`)
+and rendering both the cover and a layer page to PNG to confirm each
+rectangle sits over its real visible text, not just trusting the
+coordinate math.
+
+### Real colours on every remaining chart, not just the KMeans one
+
+Three more native `st.bar_chart` calls were still plain default-blue,
+carrying none of this app's own colour language: the Land & Crops tab's
+"Land use category" chart, its "Top crops by area" chart, and Field
+Explorer's own "How it's going" 2024→2025 NDVI comparison for a clicked
+field. Replaced with real Altair charts: the category chart uses
+`BRP_COLORS` (the same colours the map's own "Category (BRP)" legend
+uses, so chart and map layer never disagree); the top-crops chart
+colours each individual crop name by which `CROP_FAMILIES` family it
+belongs to (via the same `classify_crop()` the crop-family map layer
+uses), so it visually agrees with the "all 102 crops, by family" chart
+directly below it instead of using an unrelated colour per bar; the
+field NDVI comparison uses `KPI_INK`, the same forest green every other
+NDVI visual on the page (the new range bars, the map's own NDVI layer)
+already uses.
+
+### Streamlit Community Cloud, prepared (see `DEPLOY.md`)
+
+`packages.txt` (GDAL/spatialindex system packages), `pymupdf` added to
+`requirements.txt`, and a real decision surfaced rather than glossed
+over: the satellite/LiDAR raster archive (`data/raw` + `data/processed`,
+344 MB) stays out of git as before, but `data/processed/stats.json`
+(tens of KB, pure JSON, no rasters) is now the one exception -- carved
+out of `.gitignore` via `data/processed/*` + a `!` negation, since a
+directory-trailing-slash pattern would otherwise stop git from ever
+looking inside it. That one file is what almost every KPI card, chart,
+and text caption on the dashboard actually reads, so a fresh deploy
+shows real current numbers immediately. The interactive map and the PDF
+report -- the two features that read the actual rasters -- now fail
+*gracefully* instead of crashing when those rasters aren't present
+(`dashboard.py` catches `FileNotFoundError`/`RasterioIOError` around
+both call sites and explains exactly what's missing and how to get it,
+rather than an unhandled traceback). `DEPLOY.md` has the full picture
+and the step-by-step (GitHub repo + push + share.streamlit.io) that
+only the repo owner's own accounts can actually do.
