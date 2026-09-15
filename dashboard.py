@@ -68,6 +68,23 @@ def t(en: str, nl: str) -> str:
     return en if st.session_state.get("lang", "en") == "en" else nl
 
 
+PAGE_OPTIONS = [
+    ("overview", t("Overview", "Overzicht")),
+    ("explorer", t("Field Explorer", "Perceelverkenner")),
+    ("villages", t("Villages", "Kernen")),
+    ("land", t("Land & Crops", "Land & Gewassen")),
+    ("climate", t("Trends & Climate", "Trends & Klimaat")),
+    ("forecast", t("Forecast", "Voorspelling")),
+    ("env", t("Environment & Energy", "Milieu & Energie")),
+    ("water", t("Water", "Water")),
+    ("methodology", t("Methodology", "Methodologie")),
+    ("business", t("Business case", "Businesscase")),
+]
+
+if "active_page" not in st.session_state:
+    st.session_state["active_page"] = "overview"
+
+
 # Small, hand-drawn line icons (Feather/Lucide-style: single stroke colour,
 # rounded caps, plain geometric shapes) for the headline stat cards -- the
 # deliberate alternative to emoji after the icon-reduction pass: a real,
@@ -273,14 +290,17 @@ def _sample(path: Path, lat: float, lon: float, band: int = 1):
     """One pixel value from a raster at a WGS84 point, reprojected to
     whatever CRS that raster is actually stored in -- AHN and RIVM stay in
     RD New, the Sentinel rasters in UTM, so this can't assume one CRS."""
-    with rasterio.open(path) as src:
-        xs, ys = warp_transform("EPSG:4326", src.crs, [lon], [lat])
-        val = next(src.sample([(xs[0], ys[0])]))[band - 1]
-        if src.nodata is not None and np.isclose(val, src.nodata):
-            return None
-        if np.isnan(val):
-            return None
-        return float(val)
+    try:
+        with rasterio.open(path) as src:
+            xs, ys = warp_transform("EPSG:4326", src.crs, [lon], [lat])
+            val = next(src.sample([(xs[0], ys[0])]))[band - 1]
+            if src.nodata is not None and np.isclose(val, src.nodata):
+                return None
+            if np.isnan(val):
+                return None
+            return float(val)
+    except (FileNotFoundError, OSError, RasterioIOError, StopIteration, IndexError, ValueError):
+        return None
 
 
 def point_samples(lat: float, lon: float) -> dict:
@@ -302,11 +322,24 @@ def point_samples(lat: float, lon: float) -> dict:
 
 st.markdown("""
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Source+Sans+3:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
 <style>
-:root { --forest: #2E5943; --forest-soft: #E2ECE4; --river: #3B6E8A; --loess: #A2712F; --ink: #16221C; --ink-2: #51604F; --line: #CBD3C1; }
-html, body, [class*="css"] { font-family: "Source Sans 3", system-ui, sans-serif; }
-h1, h2, h3 { font-family: "Fraunces", Georgia, serif !important; color: var(--ink); }
+:root {
+  --forest: #183B2B; --forest-2: #2E5943; --mint: #DDEBE1; --river: #2D6F86;
+  --loess: #B78B36; --clay: #B24F42; --paper: #F6F4ED; --panel: #FFFFFF;
+  --ink: #172019; --ink-2: #526157; --line: #C7D0C4; --shadow: 0 14px 34px rgba(24,59,43,.10);
+}
+html, body, [class*="css"] { font-family: "IBM Plex Sans", system-ui, sans-serif; color: var(--ink); }
+[data-testid="stAppViewContainer"] {
+  background:
+    linear-gradient(90deg, rgba(24,59,43,.045) 0 1px, transparent 1px 100%),
+    linear-gradient(0deg, rgba(24,59,43,.035) 0 1px, transparent 1px 100%),
+    var(--paper);
+  background-size: 36px 36px, 36px 36px, auto;
+}
+[data-testid="block-container"] { max-width: 1320px; padding-top: 2rem; padding-bottom: 3.5rem; }
+[data-testid="stSidebar"] { background: #FFFFFF; border-right: 1px solid var(--line); }
+h1, h2, h3 { font-family: "IBM Plex Serif", Georgia, serif !important; color: var(--ink); letter-spacing: 0; }
 /* A colored accent bar to the left of every section heading -- one small,
    consistent "designed" touch repeated everywhere, rather than decoration
    piled onto any one spot. h1 is only ever the hero header (styled
@@ -317,18 +350,15 @@ h1, h2, h3 { font-family: "Fraunces", Georgia, serif !important; color: var(--in
 [data-testid="stAppViewContainer"] h4 { color: var(--ink); margin-top: 22px !important; }
 hr { margin: 30px 0 !important; border-color: var(--line) !important; }
 .bd-header {
-  background:
-    repeating-linear-gradient(135deg, rgba(255,255,255,.045) 0px, rgba(255,255,255,.045) 2px, transparent 2px, transparent 16px),
-    radial-gradient(circle at 85% 15%, rgba(255,255,255,.07) 0%, transparent 45%),
-    linear-gradient(135deg, #2E5943 0%, #1B3E2E 100%);
+  background: linear-gradient(135deg, #183B2B 0%, #214D39 48%, #2D6F86 100%);
   color: #F3F6F1; padding: 30px 34px; border-radius: 14px; margin-bottom: 26px;
 }
 .bd-header h1 { color: #FFFFFF !important; margin: 0 0 8px 0; font-size: 2.1rem; border-left: none !important; padding-left: 0 !important; }
 .bd-header p { margin: 0; color: #DCE7DD; font-size: 0.96rem; line-height: 1.5; }
 .bd-header .bd-meta { display:block; margin-top:8px; opacity:.72; font-size:.82rem; }
 .bd-tag { display:inline-block; font-family:"JetBrains Mono", monospace; font-size:.68rem; letter-spacing:.08em; text-transform:uppercase; background: rgba(255,255,255,.15); color:#EAF1EA; padding:4px 11px; border-radius:20px; margin-bottom:12px; }
-div[data-testid="stMetric"] { background: #FFFFFF; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px 12px; box-shadow: 0 1px 3px rgba(22,34,28,.07); transition: box-shadow .15s ease, transform .15s ease; }
-div[data-testid="stMetric"]:hover { box-shadow: 0 4px 12px rgba(22,34,28,.1); transform: translateY(-1px); }
+div[data-testid="stMetric"] { background: #FFFFFF; border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px 12px; box-shadow: var(--shadow); transition: box-shadow .15s ease, transform .15s ease; }
+div[data-testid="stMetric"]:hover { box-shadow: 0 18px 40px rgba(24,59,43,.15); transform: translateY(-1px); }
 div[data-testid="stMetricLabel"] { color: var(--ink-2); }
 div[data-testid="stMetricValue"] { font-variant-numeric: tabular-nums; }
 button[data-baseweb="tab"] { font-weight: 600; font-size: 0.95rem; }
@@ -363,15 +393,47 @@ button[data-baseweb="tab"][aria-selected="true"] { color: var(--forest) !importa
 .bd-kpi-context { font-size: .78rem; color: var(--ink-2); margin-top: 4px; line-height: 1.25;
   min-height: 2.1em; }
 .bd-kpi-visual { margin-top: auto; padding-top: 6px; min-height: 34px; display: flex; align-items: flex-end; }
+/* Strong visual redesign: editorial municipal intelligence dashboard. */
+.bd-header {
+  background:
+    linear-gradient(90deg, rgba(255,255,255,.14) 0 1px, transparent 1px 100%),
+    linear-gradient(0deg, rgba(255,255,255,.09) 0 1px, transparent 1px 100%),
+    radial-gradient(circle at 88% 18%, rgba(224,185,89,.28), transparent 30%),
+    linear-gradient(135deg, #10281D 0%, #1F5038 46%, #2D6F86 100%) !important;
+  background-size: 26px 26px, 26px 26px, auto, auto !important;
+  border-radius: 6px !important; padding: 46px 48px 40px !important;
+  border: 1px solid rgba(255,255,255,.22); box-shadow: var(--shadow);
+}
+.bd-header h1 { font-size: 3.35rem !important; line-height: .98 !important; max-width: 1000px; }
+.bd-header p { font-size: 1.14rem !important; max-width: 920px; color:#EDF4EE !important; }
+.bd-tag { border-radius:3px !important; background:#E0B959 !important; color:#10281D !important; font-weight:700; }
+div[data-testid="stMetric"], [data-testid="stExpander"], [data-testid="stDataFrame"], [data-testid="stPopoverBody"], .bd-stat-pill, .bd-kpi-card { border-radius: 8px !important; }
+.bd-hero-actions { display:flex; gap:10px; flex-wrap:wrap; margin-top:18px; }
+.bd-hero-chip { border:1px solid rgba(255,255,255,.38); border-radius:3px; padding:8px 11px; color:#F7FAF5; background:rgba(255,255,255,.10); font-size:.88rem; font-weight:600; }
+.bd-decision-grid { display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:14px; margin: 0 0 22px; }
+.bd-decision-card { background:#FFFFFF; border:1px solid var(--line); border-top:6px solid var(--forest); border-radius:6px; padding:18px 18px 16px; min-height:130px; box-shadow:var(--shadow); }
+.bd-decision-card:nth-child(2) { border-top-color: var(--river); }
+.bd-decision-card:nth-child(3) { border-top-color: var(--clay); }
+.bd-decision-card strong { display:block; color:var(--ink); font-family:"IBM Plex Serif", Georgia, serif; font-size:1.14rem; margin-bottom:8px; }
+.bd-decision-card span { color:var(--ink-2); line-height:1.36; font-size:.91rem; }
+.bd-page-shell { margin: 12px 0 16px; padding: 14px; background:#10281D; border:1px solid #10281D; border-radius:6px; box-shadow:var(--shadow); }
+.bd-page-shell [data-testid="stSegmentedControl"] { margin-bottom: 0; }
+.bd-page-shell label, .bd-page-shell p { color:#F7FAF5 !important; }
+.bd-page-shell button { border-radius:3px !important; font-weight:700 !important; }
+.bd-page-note { color: var(--ink-2); font-size:.9rem; margin: -2px 0 22px; }
+.bd-stat-pill { border-left: 5px solid var(--forest-2); }
+.bd-stat-num { font-family: "IBM Plex Serif", Georgia, serif !important; font-size: 1.85rem !important; color: var(--forest) !important; }
+.bd-kpi-card { border-top: 5px solid var(--forest-2) !important; height: 186px !important; box-shadow: var(--shadow) !important; }
+.bd-kpi-value { font-family: "IBM Plex Serif", Georgia, serif !important; font-size: 1.92rem !important; }
+@media (max-width: 900px) { .bd-decision-grid { grid-template-columns: 1fr; } .bd-header { padding: 32px 24px !important; } .bd-header h1 { font-size:2.25rem !important; } }
 @media print {
   [data-testid="stSidebar"], header[data-testid="stHeader"],
   [data-testid="stToolbar"], button[data-baseweb="tab"] { display: none !important; }
   [data-testid="stAppViewContainer"] { margin-left: 0 !important; }
   .bd-header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .bd-print-stamp { display: block !important; }
-  /* Streamlit tabs already hide every panel but the active one via its
-     own display:none -- print naturally captures just that one tab,
-     the same thing the button below is for. */
+  /* The app renders only one section at a time, so print naturally captures
+     the same focused section the viewer has open. */
 }
 .bd-print-stamp { display: none; color: var(--ink-2); font-size: .8rem; margin: 4px 0 16px; }
 </style>
@@ -408,17 +470,22 @@ _last_updated = (
 )
 st.markdown(f"""
 <div class="bd-header">
-  <span class="bd-tag">{t("Pilot Project · Gemeente Berg en Dal", "Pilotproject · Gemeente Berg en Dal")}</span>
-  <h1>🛰️ {t("Berg en Dal — remote sensing pilot", "Berg en Dal — aardobservatie-pilot")}</h1>
+  <span class="bd-tag">{t("Municipal Intelligence Pilot", "Gemeentelijke informatiepilot")}</span>
+  <h1>{t("Berg en Dal from orbit to decision", "Berg en Dal van satellietbeeld naar besluit")}</h1>
   <p>
     {t(
-      "Real satellite and LiDAR data for the Berg en Dal municipality — everything on this page was "
-      "fetched live, nothing is simulated.",
-      "Echte satelliet- en LiDAR-data voor de gemeente Berg en Dal — alles op deze pagina is live "
-      "opgehaald, niets is gesimuleerd."
+      "A working dashboard that turns public satellite, LiDAR, weather, registry and air-quality data "
+      "into field-level evidence for land, water, crops, climate risk and municipal planning.",
+      "Een werkend dashboard dat openbare satelliet-, LiDAR-, weer-, registratie- en luchtkwaliteitsdata "
+      "omzet in bewijs op perceelniveau voor land, water, gewassen, klimaatrisico en gemeentelijke planning."
     )}
     <span class="bd-meta">{t("Data last refreshed", "Data laatst ververst")}: {_last_updated}</span>
   </p>
+  <div class="bd-hero-actions">
+    <span class="bd-hero-chip">{t("No paid data subscriptions", "Geen betaalde data-abonnementen")}</span>
+    <span class="bd-hero-chip">{t("Clickable BRP field parcels", "Klikbare BRP-percelen")}</span>
+    <span class="bd-hero-chip">{t("Ready for a 90-day paid pilot", "Klaar voor een betaalde pilot van 90 dagen")}</span>
+  </div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -455,9 +522,9 @@ forecast = stats.get("forecast", {})
 landcover_change_map = stats.get("landcover_change_map", {})
 
 with st.sidebar:
-    st.markdown(f"### 🛰️ {t('Berg en Dal pilot', 'Berg en Dal-pilot')}")
-    st.caption(t("Real satellite, LiDAR & registry data — nothing simulated.",
-                 "Echte satelliet-, LiDAR- en registratiedata — niets gesimuleerd."))
+    st.markdown(f"### {t('Berg en Dal pilot', 'Berg en Dal-pilot')}")
+    st.caption(t("Satellite evidence for land, water, crops and planning.",
+                 "Satellietbewijs voor land, water, gewassen en planning."))
     st.markdown(f"**{t('Language', 'Taal')}**")
     # No default= here: key="lang" already binds this widget to
     # st.session_state["lang"], which the top of this file sets before
@@ -469,7 +536,6 @@ with st.sidebar:
         "Language", options=["en", "nl"], format_func=lambda k: {"en": "English", "nl": "Nederlands"}[k],
         label_visibility="collapsed", key="lang",
     )
-    st.divider()
     st.markdown(f"**{t('Village / place', 'Plaats / kern')}**")
     _village_options = [t("All of Berg en Dal", "Heel Berg en Dal")] + [v["name"] for v in villages]
     selected_village = st.selectbox(
@@ -483,18 +549,18 @@ with st.sidebar:
                 f"{_v['population']:,} residents · {_v['land_area_ha']:,.0f} ha" if _v["population"] else "",
                 f"{_v['population']:,} inwoners · {_v['land_area_ha']:,.0f} ha" if _v["population"] else "",
             ))
-        st.caption(t("Applies to the Overview and Field Explorer maps (other tabs stay municipality-wide).",
-                     "Geldt voor de kaarten in Overzicht en Perceelverkenner (andere tabbladen blijven gemeentebreed)."))
+        st.caption(t("Applies to the Overview and Field Explorer maps (other sections stay municipality-wide).",
+                     "Geldt voor de kaarten in Overzicht en Perceelverkenner (andere onderdelen blijven gemeentebreed)."))
     else:
         selected_village = None
     st.divider()
     st.markdown(f"**{t('Print / export', 'Afdrukken / exporteren')}**")
-    if st.button("🖨️ " + t("Print this tab", "Print dit tabblad"), use_container_width=True):
+    if st.button("🖨️ " + t("Print this section", "Print dit onderdeel"), use_container_width=True):
         st.components.v1.html("<script>window.parent.print();</script>", height=0)
     st.caption(t(
-        "Opens your browser's print dialog for whichever tab is open — a quick snapshot, but it can't "
+        "Opens your browser's print dialog for whichever section is open — a quick snapshot, but it can't "
         "pick layers or bake in a real legend/scale bar. For that, build a PDF report below.",
-        "Opent het afdrukdialoogvenster van je browser voor het geopende tabblad — een snelle "
+        "Opent het afdrukdialoogvenster van je browser voor het geopende onderdeel — een snelle "
         "momentopname, maar zonder gekozen lagen of een echte legenda/schaalbalk. Bouw daarvoor "
         "hieronder een PDF-rapport.",
     ))
@@ -553,6 +619,51 @@ st.markdown(f"""
            f'<div><div class="bd-stat-num">{n}</div><div class="bd-stat-lbl">{l}</div></div></div>' for ic, n, l in _pills)}
 </div>
 """, unsafe_allow_html=True)
+
+_decision_1 = t(
+    "Track land-use pressure, housing context, heat and vegetation stress, air quality and flood exposure from one evidence base.",
+    "Volg ruimtedruk, woningbouwcontext, hitte- en vegetatiestress, luchtkwaliteit en overstromingsblootstelling vanuit een bewijsbasis.",
+)
+_decision_2 = t(
+    "Inspect every registered field parcel, compare NDVI, crop rotation and soil signals, and turn anomalies into advisory visits.",
+    "Bekijk elk geregistreerd perceel, vergelijk NDVI, gewasrotatie en bodemsignalen, en zet afwijkingen om in adviesbezoeken.",
+)
+_decision_3 = t(
+    "Use repeatable flood, vegetation and canopy indicators as a low-cost monitoring layer before expensive field campaigns.",
+    "Gebruik herhaalbare indicatoren voor hoogwater, vegetatie en bladerdak als goedkope monitoringlaag voor veldwerk.",
+)
+st.markdown(f"""
+<div class="bd-decision-grid">
+  <div class="bd-decision-card">
+    <strong>{t("For the municipality", "Voor de gemeente")}</strong>
+    <span>{_decision_1}</span>
+  </div>
+  <div class="bd-decision-card">
+    <strong>{t("For farmers", "Voor boeren")}</strong>
+    <span>{_decision_2}</span>
+  </div>
+  <div class="bd-decision-card">
+    <strong>{t("For water and nature partners", "Voor water- en natuurpartners")}</strong>
+    <span>{_decision_3}</span>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+_page_label_by_key = dict(PAGE_OPTIONS)
+st.markdown('<div class="bd-page-shell">', unsafe_allow_html=True)
+active_page = st.segmented_control(
+    t("Open section", "Open onderdeel"),
+    options=[key for key, _ in PAGE_OPTIONS],
+    format_func=lambda key: _page_label_by_key[key],
+    label_visibility="collapsed",
+    key="active_page",
+)
+st.markdown('</div>', unsafe_allow_html=True)
+st.markdown(
+    f'<div class="bd-page-note">{t("Only this section is rendered on refresh, so the dashboard starts faster and hidden maps cannot break the page.",
+                                  "Alleen dit onderdeel wordt bij verversen opgebouwd, waardoor het dashboard sneller start en verborgen kaarten de pagina niet kunnen breken.")}</div>',
+    unsafe_allow_html=True,
+)
 
 
 def m(section: dict, key: str, fmt: str = "{:,.0f}") -> str:
@@ -1022,26 +1133,13 @@ def flood_timeline_chart(flood_event: dict) -> alt.LayerChart:
     )
 
 
-tab_overview, tab_explorer, tab_villages, tab_land, tab_climate, tab_forecast, tab_env, tab_water, \
-    tab_methodology, tab_business = st.tabs([
-    t("Overview", "Overzicht"),
-    t("Field Explorer", "Perceelverkenner"),
-    t("Villages", "Kernen"),
-    t("Land & Crops", "Land & Gewassen"),
-    t("Trends & Climate", "Trends & Klimaat"),
-    t("Forecast", "Voorspelling"),
-    t("Environment & Energy", "Milieu & Energie"),
-    t("Water", "Water"),
-    t("Methodology", "Methodologie"),
-    t("Business case", "Businesscase"),
-])
 METHOD_BY_ID = {e.id: e for e in METHOD_ENTRIES}
 
 
 def method_popover(entry_id: str) -> None:
     """The 'info icon that links to its entry' from every KPI card and map
     legend -- as a real, always-working st.popover rather than a link to
-    the Methodology tab: Streamlit's st.tabs() can't be switched to from a
+    the Methodology section: Streamlit's tab component can't be switched to from a
     link/click (there's no supported API for it, and an anchor pointing
     into a different tab's panel lands on an element hidden by Streamlit's
     own display:none, which a browser can't usefully scroll to) -- so
@@ -1068,10 +1166,10 @@ def method_popover(entry_id: str) -> None:
             st.markdown(f"**{t('Open questions', 'Open vragen')}:**")
             for q in e.open_questions[i]:
                 st.caption(f"• {q}")
-        st.caption(f"{t('Code', 'Code')}: `{e.code_ref}` — {t('full write-up on the Methodology tab', 'volledige uitleg op het tabblad Methodologie')}.")
+        st.caption(f"{t('Code', 'Code')}: `{e.code_ref}` — {t('full write-up in the Methodology section', 'volledige uitleg in het onderdeel Methodologie')}.")
 
 # ======================================================================
-with tab_overview:
+if active_page == "overview":
     st.caption(t("Click any card's ⓘ for its method, or More for extra detail.",
                   "Klik op ⓘ voor de methode, of Meer voor extra detail."))
     _cbs_year = cbs.get("year") or "?"
@@ -1291,7 +1389,7 @@ with tab_overview:
         ))
 
 # ======================================================================
-with tab_explorer:
+if active_page == "explorer":
     st.subheader(t("Every field, selectable", "Elk perceel selecteerbaar"))
     st.caption(t(
         "Pick what colours the fields, then click one for its details and how it's changed year over year.",
@@ -1465,7 +1563,7 @@ with tab_explorer:
     ))
 
 # ======================================================================
-with tab_villages:
+if active_page == "villages":
     st.subheader(t("13 places, one municipality", "13 plaatsen, één gemeente"))
     st.caption(t(
         "Berg en Dal is a 2015 merger of the former municipalities Groesbeek, Millingen aan de Rijn and "
@@ -1527,7 +1625,7 @@ with tab_villages:
         ))
 
 # ======================================================================
-with tab_land:
+if active_page == "land":
     st.subheader(t("Real field boundaries, real crops", "Echte perceelgrenzen, echte gewassen"))
     st.caption(t(
         f"Source: BRP (Basisregistratie Gewaspercelen) — every parcel a farmer registered for subsidy, "
@@ -1805,7 +1903,7 @@ with tab_land:
             ))
 
 # ======================================================================
-with tab_climate:
+if active_page == "climate":
     st.subheader(t("22 years of vegetation, weather, and how they connect",
                     "22 jaar vegetatie, weer, en hun onderlinge samenhang"))
     st.caption(t(
@@ -2064,7 +2162,7 @@ with tab_climate:
         ))
 
 # ======================================================================
-with tab_forecast:
+if active_page == "forecast":
     st.subheader(t("What the recent trend suggests, if it continues",
                     "Wat de recente trend suggereert, als die doorzet"))
     st.caption(t(
@@ -2087,7 +2185,7 @@ with tab_forecast:
         "lijn, als het daadwerkelijke antwoord.**",
     ))
 
-    with st.expander(t("How every forecast on this tab is actually calculated", "Hoe elke voorspelling op dit tabblad daadwerkelijk wordt berekend")):
+    with st.expander(t("How every forecast in this section is actually calculated", "Hoe elke voorspelling in dit onderdeel daadwerkelijk wordt berekend")):
         st.markdown(t(
             "**Vegetation, land cover, population, housing stock — one method, four series:** ordinary "
             "least squares (`sklearn.linear_model.LinearRegression`) fit on that series' own real annual "
@@ -2279,7 +2377,7 @@ with tab_forecast:
                 _needs_brp_geometry(t("This chart", "Deze grafiek"))
 
 # ======================================================================
-with tab_env:
+if active_page == "env":
     st.subheader(t("Air quality — RIVM, 2024", "Luchtkwaliteit — RIVM, 2024"))
     no2, pm10, pm25, nh3 = air.get("NO2", {}), air.get("PM10", {}), air.get("PM25", {}), air.get("NH3", {})
     c1, c2, c3, c4 = st.columns(4)
@@ -2420,7 +2518,7 @@ with tab_env:
     ))
 
 # ======================================================================
-with tab_water:
+if active_page == "water":
     if flood_event.get("timeline"):
         st.success(t(
             "**Flood extent, documented Jan 2024 high water (Lobith peaked at 14.5–14.7 m NAP, a "
@@ -2503,7 +2601,7 @@ with tab_water:
     ))
 
 # ======================================================================
-with tab_methodology:
+if active_page == "methodology":
     st.subheader(t("How every number on this site is actually calculated",
                     "Hoe elk cijfer op deze site daadwerkelijk wordt berekend"))
     st.caption(t(
@@ -2549,7 +2647,7 @@ with tab_methodology:
     ))
 
 # ======================================================================
-with tab_business:
+if active_page == "business":
     st.subheader(t("What this could actually be", "Wat dit daadwerkelijk zou kunnen worden"))
     st.markdown(t(
         "Everything in the other tabs is a **working pipeline on free public data** — nothing here "
