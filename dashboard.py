@@ -325,7 +325,7 @@ st.markdown("""
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
 <style>
 :root {
-  --forest: #183B2B; --forest-2: #2E5943; --mint: #DDEBE1; --river: #2D6F86;
+  --forest: #183B2B; --forest-2: #2E5943; --mint: #DDEBE1; --forest-soft: #DDEBE1; --river: #2D6F86;
   --loess: #B78B36; --clay: #B24F42; --paper: #F6F4ED; --panel: #FFFFFF;
   --ink: #172019; --ink-2: #526157; --line: #C7D0C4; --shadow: 0 14px 34px rgba(24,59,43,.10);
 }
@@ -426,6 +426,10 @@ div[data-testid="stMetric"], [data-testid="stExpander"], [data-testid="stDataFra
 .bd-stat-num { font-family: "IBM Plex Serif", Georgia, serif !important; font-size: 1.85rem !important; color: var(--forest) !important; }
 .bd-kpi-card { border-top: 5px solid var(--forest-2) !important; height: 186px !important; box-shadow: var(--shadow) !important; }
 .bd-kpi-value { font-family: "IBM Plex Serif", Georgia, serif !important; font-size: 1.92rem !important; }
+[data-testid="stIFrame"] {
+  border: 1px solid var(--line) !important; border-radius: 6px !important;
+  box-shadow: var(--shadow) !important; background: #FFFFFF !important;
+}
 [data-testid="stVegaLiteChart"] {
   background: #FFFFFF; border: 1px solid var(--line); border-radius: 6px;
   padding: 10px 10px 4px; box-shadow: 0 8px 22px rgba(24,59,43,.07);

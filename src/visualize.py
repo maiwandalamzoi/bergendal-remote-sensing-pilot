@@ -548,6 +548,51 @@ def _north_arrow_element() -> folium.Element:
     """)
 
 
+def _map_ui_style_element() -> folium.Element:
+    """Shared Leaflet UI polish for both interactive maps: grouped layer
+    controls and legends should read as one designed system, not default
+    plugin boxes mixed with ad-hoc HTML cards."""
+    return folium.Element("""
+    <style>
+      .leaflet-control-layers,
+      .bd-field-legend,
+      details.bd-legend {
+        background: rgba(255,255,255,.96) !important;
+        border: 1px solid #c7d0c4 !important;
+        border-radius: 6px !important;
+        box-shadow: 0 10px 26px rgba(16,40,29,.18) !important;
+        color: #172019 !important;
+        font-family: "IBM Plex Sans", "Segoe UI", Arial, sans-serif !important;
+        font-size: 12px !important;
+        backdrop-filter: blur(2px);
+      }
+      .leaflet-control-layers {
+        max-height: 58vh; overflow: auto; padding: 8px 10px !important;
+      }
+      .leaflet-control-layers label { margin: 3px 0; line-height: 1.25; }
+      .leaflet-control-layers-group-name {
+        color:#10281d; font-weight: 800; margin: 8px 0 4px; display:block;
+      }
+      .bd-field-legend {
+        position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+        padding: 10px 12px; max-width: 270px; line-height: 1.25;
+      }
+      .bd-field-legend-title {
+        font-weight: 800; color:#10281d; margin-bottom: 7px; padding-bottom: 7px;
+        border-bottom: 1px solid #e4e8df;
+      }
+      .bd-field-legend-note {
+        margin-top: 8px; padding-top: 7px; border-top: 1px solid #e4e8df;
+        color:#526157; font-size: 10.5px; line-height: 1.35;
+      }
+      @media print {
+        .leaflet-control-layers, .leaflet-control-zoom, .leaflet-control-fullscreen { display:none !important; }
+        .bd-field-legend, details.bd-legend { box-shadow:none !important; border:1px solid #999 !important; }
+      }
+    </style>
+    """)
+
+
 def field_explorer_map(color_by: str = "category", center: list | None = None, lang: str = "en",
                         village: str | None = None):
     """One clickable field per BRP parcel, recoloured by whichever attribute
@@ -676,6 +721,7 @@ def field_explorer_map(color_by: str = "category", center: list | None = None, l
 
     m = folium.Map(location=center, zoom_start=14 if village else 13, tiles="OpenStreetMap",
                     control_scale=True, prefer_canvas=True)
+    m.get_root().html.add_child(_map_ui_style_element())
     Fullscreen(position="topleft",
                title="Fullscreen" if lang == "en" else "Volledig scherm",
                title_cancel="Exit fullscreen" if lang == "en" else "Volledig scherm sluiten").add_to(m)
@@ -735,11 +781,8 @@ def field_explorer_map(color_by: str = "category", center: list | None = None, l
         )
         legend_title = "Crop family" if lang == "en" else "Gewasfamilie"
         m.get_root().html.add_child(folium.Element(f"""
-        <div style="position: fixed; bottom: 24px; right: 24px; z-index: 9999;
-                    background: white; padding: 10px 14px; border-radius: 8px;
-                    box-shadow: 0 2px 10px rgba(0,0,0,.2); font-family: sans-serif; font-size: 11.5px;
-                    max-width: 250px;">
-          <div style="font-weight:600; margin-bottom:4px; font-size:12px;">{legend_title}</div>
+        <div class="bd-field-legend">
+          <div class="bd-field-legend-title">{legend_title}</div>
           {rows}
         </div>
         """))
@@ -755,11 +798,8 @@ def field_explorer_map(color_by: str = "category", center: list | None = None, l
         )
         legend_title = ("Category (BRP)", "Categorie (BRP)")[i]
         m.get_root().html.add_child(folium.Element(f"""
-        <div style="position: fixed; bottom: 24px; right: 24px; z-index: 9999;
-                    background: white; padding: 10px 14px; border-radius: 8px;
-                    box-shadow: 0 2px 10px rgba(0,0,0,.2); font-family: sans-serif; font-size: 11.5px;
-                    max-width: 220px;">
-          <div style="font-weight:600; margin-bottom:4px; font-size:12px;">{legend_title}</div>
+        <div class="bd-field-legend">
+          <div class="bd-field-legend-title">{legend_title}</div>
           {rows}
         </div>
         """))
@@ -780,11 +820,8 @@ def field_explorer_map(color_by: str = "category", center: list | None = None, l
         stops = [_hex_from_cmap(vmin + f * (vmax - vmin), vmin, vmax, cmap_name) for f in (0, .25, .5, .75, 1)]
         gradient_css = ",".join(stops)
         m.get_root().html.add_child(folium.Element(f"""
-        <div style="position: fixed; bottom: 24px; right: 24px; z-index: 9999;
-                    background: white; padding: 10px 14px; border-radius: 8px;
-                    box-shadow: 0 2px 10px rgba(0,0,0,.2); font-family: sans-serif; font-size: 11.5px;
-                    max-width: 220px;">
-          <div style="font-weight:600; margin-bottom:6px; font-size:12px;">{legend_title}</div>
+        <div class="bd-field-legend">
+          <div class="bd-field-legend-title">{legend_title}</div>
           <div style="height:12px; border-radius:3px; background: linear-gradient(to right, {gradient_css});"></div>
           <div style="display:flex; justify-content:space-between; margin-top:4px; color:#555; font-size:10.5px;">
             <span>{lo_txt}</span><span>{hi_txt}</span>
@@ -815,13 +852,10 @@ def field_explorer_map(color_by: str = "category", center: list | None = None, l
             "voorspelde kans.",
         )[i]
         m.get_root().html.add_child(folium.Element(f"""
-        <div style="position: fixed; bottom: 24px; right: 24px; z-index: 9999;
-                    background: white; padding: 10px 14px; border-radius: 8px;
-                    box-shadow: 0 2px 10px rgba(0,0,0,.2); font-family: sans-serif; font-size: 11.5px;
-                    max-width: 260px;">
-          <div style="font-weight:600; margin-bottom:4px; font-size:12px;">{legend_title}</div>
+        <div class="bd-field-legend">
+          <div class="bd-field-legend-title">{legend_title}</div>
           {rows}
-          <div style="margin-top:6px; color:#666; font-size:10px; line-height:1.4;">{legend_note}</div>
+          <div class="bd-field-legend-note">{legend_note}</div>
         </div>
         """))
 
@@ -1014,6 +1048,7 @@ def make_map(label_new: str = "summer_2025", label_old: str = "summer_2024", lan
         center = [(bounds[0][0] + bounds[1][0]) / 2, (bounds[0][1] + bounds[1][1]) / 2]
         zoom_start = 12
     m = folium.Map(location=center, zoom_start=zoom_start, tiles="OpenStreetMap", control_scale=True)
+    m.get_root().html.add_child(_map_ui_style_element())
     Fullscreen(position="topleft",
                title="Fullscreen" if lang == "en" else "Volledig scherm",
                title_cancel="Exit fullscreen" if lang == "en" else "Volledig scherm sluiten").add_to(m)
@@ -1215,10 +1250,6 @@ def make_map(label_new: str = "summer_2025", label_old: str = "summer_2024", lan
       </div>
     </details>
     """
-    m.get_root().html.add_child(folium.Element(f"""
-    <div style="position: fixed; bottom: 24px; right: 24px; z-index: 9999;">{flood_legend_block}</div>
-    """))
-
     brp_legend_rows = "".join(
         f'<div style="display:flex;align-items:center;gap:6px;margin:2px 0;">'
         f'<span style="width:12px;height:12px;background:{color};display:inline-block;border-radius:2px;"></span>{name}</div>'
@@ -1289,11 +1320,13 @@ def make_map(label_new: str = "summer_2025", label_old: str = "summer_2024", lan
     # default (the most commonly toggled-on layer alongside true colour);
     # the rest are one click away rather than always taking up space.
     m.get_root().html.add_child(folium.Element(f"""
-    <div style="position: fixed; bottom: 24px; left: 24px; z-index: 9999; display: flex;
-                flex-direction: column; gap: 8px; max-width: 260px;">
+    <div style="position: fixed; bottom: 42px; left: 24px; z-index: 9999; display: flex;
+                flex-direction: column; gap: 8px; width: min(280px, calc(100vw - 48px));
+                max-height: 56vh; overflow: auto;">
       {land_cover_legend_block}
       {brp_legend_block}
       {lcc_legend_block}
+      {flood_legend_block}
     </div>
     """))
 
