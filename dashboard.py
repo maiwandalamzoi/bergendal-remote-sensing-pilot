@@ -262,7 +262,7 @@ def load_brp_gdf():
 def _needs_brp_geometry(section: str) -> None:
     """The one message every load_brp_gdf()-is-None call site shows --
     centralized so the wording (and the fix instructions) can't drift
-    between the map tabs, the crop-family chart, and the Forecast tab's
+    between the map tabs, the crop-family chart, and the Forecast section's
     rotation summary, all of which read the same missing file."""
     st.info(t(
         f"{section} needs the full BRP parcel archive, which this deployment doesn't have (only the "
@@ -421,17 +421,27 @@ div[data-testid="stMetric"], [data-testid="stExpander"], [data-testid="stDataFra
 .bd-page-shell label, .bd-page-shell p { color:#F7FAF5 !important; }
 .bd-page-shell button { border-radius:3px !important; font-weight:700 !important; }
 .bd-page-note { color: var(--ink-2); font-size:.9rem; margin: -2px 0 22px; }
+.bd-page-note strong { color: var(--forest); }
 .bd-stat-pill { border-left: 5px solid var(--forest-2); }
 .bd-stat-num { font-family: "IBM Plex Serif", Georgia, serif !important; font-size: 1.85rem !important; color: var(--forest) !important; }
 .bd-kpi-card { border-top: 5px solid var(--forest-2) !important; height: 186px !important; box-shadow: var(--shadow) !important; }
 .bd-kpi-value { font-family: "IBM Plex Serif", Georgia, serif !important; font-size: 1.92rem !important; }
+[data-testid="stVegaLiteChart"] {
+  background: #FFFFFF; border: 1px solid var(--line); border-radius: 6px;
+  padding: 10px 10px 4px; box-shadow: 0 8px 22px rgba(24,59,43,.07);
+}
+.bd-print-only { display:none; }
 @media (max-width: 900px) { .bd-decision-grid { grid-template-columns: 1fr; } .bd-header { padding: 32px 24px !important; } .bd-header h1 { font-size:2.25rem !important; } }
 @media print {
   [data-testid="stSidebar"], header[data-testid="stHeader"],
-  [data-testid="stToolbar"], button[data-baseweb="tab"] { display: none !important; }
+  [data-testid="stToolbar"], button[data-baseweb="tab"], .bd-page-shell, .bd-page-note { display: none !important; }
   [data-testid="stAppViewContainer"] { margin-left: 0 !important; }
+  [data-testid="block-container"] { max-width: none; padding: 18px 24px !important; }
+  [data-testid="stVegaLiteChart"], div[data-testid="stMetric"], .bd-kpi-card, .bd-stat-pill, .bd-decision-card {
+    box-shadow: none !important; break-inside: avoid; page-break-inside: avoid;
+  }
   .bd-header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .bd-print-stamp { display: block !important; }
+  .bd-print-stamp, .bd-print-only { display: block !important; }
   /* The app renders only one section at a time, so print naturally captures
      the same focused section the viewer has open. */
 }
@@ -482,9 +492,9 @@ st.markdown(f"""
     <span class="bd-meta">{t("Data last refreshed", "Data laatst ververst")}: {_last_updated}</span>
   </p>
   <div class="bd-hero-actions">
-    <span class="bd-hero-chip">{t("No paid data subscriptions", "Geen betaalde data-abonnementen")}</span>
-    <span class="bd-hero-chip">{t("Clickable BRP field parcels", "Klikbare BRP-percelen")}</span>
-    <span class="bd-hero-chip">{t("Ready for a 90-day paid pilot", "Klaar voor een betaalde pilot van 90 dagen")}</span>
+    <span class="bd-hero-chip">{t("Built from official open Dutch datasets", "Gebouwd op officiele open Nederlandse datasets")}</span>
+    <span class="bd-hero-chip">{t("Parcel-level evidence for decisions", "Bewijs op perceelniveau voor besluiten")}</span>
+    <span class="bd-hero-chip">{t("Proposal-ready pilot dashboard", "Voorstelklare pilotdashboard")}</span>
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -660,8 +670,8 @@ active_page = st.segmented_control(
 )
 st.markdown('</div>', unsafe_allow_html=True)
 st.markdown(
-    f'<div class="bd-page-note">{t("Only this section is rendered on refresh, so the dashboard starts faster and hidden maps cannot break the page.",
-                                  "Alleen dit onderdeel wordt bij verversen opgebouwd, waardoor het dashboard sneller start en verborgen kaarten de pagina niet kunnen breken.")}</div>',
+    f'<div class="bd-page-note">{t("<strong>Proposal view:</strong> each section renders separately for reliable sharing, printing and map-heavy review.",
+                                  "<strong>Voorstelweergave:</strong> elk onderdeel wordt apart opgebouwd voor betrouwbaar delen, printen en kaartintensieve beoordeling.")}</div>',
     unsafe_allow_html=True,
 )
 
@@ -915,7 +925,7 @@ def crop_family_forecast_chart(current_ha: dict, projected_ha: dict) -> alt.Char
     categorical identity (family) on the axis rather than encoded in
     colour twice. `projected_ha` comes straight from forecast.py's Markov
     transition matrix applied to every field's own current family and
-    area; see the Field Explorer tab's own colour mode for the
+    area; see the Field Explorer section's own colour mode for the
     per-field version of the same prediction."""
     i = 0 if LANG == "en" else 1
     families = sorted(
@@ -1361,12 +1371,12 @@ if active_page == "overview":
     st.markdown(t(
         "**What's not validated yet:**\n"
         "- Land cover cluster names are a spectral best guess (no ground-truth join) — except where the "
-        "Land & Crops tab now backs them with real BRP field registrations.\n"
-        f"- SAR/optical water agreement: {cross.get('iou_pct', 0):.0f}% IoU — see the Water tab.",
+        "Land & Crops section now backs them with real BRP field registrations.\n"
+        f"- SAR/optical water agreement: {cross.get('iou_pct', 0):.0f}% IoU — see the Water section.",
         "**Nog niet gevalideerd:**\n"
         "- Namen van landgebruiksclusters zijn een spectrale inschatting (geen koppeling aan grondwaarheid) "
-        "— behalve waar het tabblad Land & Gewassen ze onderbouwt met echte BRP-registraties.\n"
-        f"- SAR/optische overeenstemming water: {cross.get('iou_pct', 0):.0f}% IoU — zie het tabblad Water.",
+        "— behalve waar het onderdeel Land & Gewassen ze onderbouwt met echte BRP-registraties.\n"
+        f"- SAR/optische overeenstemming water: {cross.get('iou_pct', 0):.0f}% IoU — zie het onderdeel Water.",
     ))
 
     if trend.get("years"):
@@ -1375,13 +1385,13 @@ if active_page == "overview":
         r_temp_headline = climate_corr.get("correlations", {}).get("ndvi_vs_august_temp")
         st.info(t(
             f"Full NDVI/NDWI trend, real August weather back to {trend['years'][0]}, and how they line up "
-            "— see the **Trends & Climate** tab. Headline: net "
+            "— see the **Trends & Climate** section. Headline: net "
             f"{trend.get('net_change', 0):+.3f} NDVI over {len(trend['years']) - 1} years, and August "
             "temperature is the single strongest weather correlate of that year's NDVI"
             + (f" (r ≈ {r_temp_headline:+.2f})" if r_temp_headline is not None else "") +
             " — hotter Augusts, lower vigour, physically the direction you'd expect.",
             f"Volledige NDVI/NDWI-trend, echte augustusweer-data terug tot {trend['years'][0]}, en hoe ze "
-            "samenhangen — zie het tabblad **Trends & Klimaat**. Kernpunt: netto "
+            "samenhangen — zie het onderdeel **Trends & Klimaat**. Kernpunt: netto "
             f"{trend.get('net_change', 0):+.3f} NDVI over {len(trend['years']) - 1} jaar, en de "
             "augustustemperatuur is de sterkste weerscorrelatie met de NDVI van dat jaar"
             + (f" (r ≈ {r_temp_headline:+.2f})" if r_temp_headline is not None else "") +
@@ -1851,12 +1861,12 @@ if active_page == "land":
         fc4.metric(t("Built-up growth", "Bebouwingsgroei"), f"{_ha.get('Built-up growth', 0):,.0f} ha")
         st.caption(t(
             f"A real spatial map, not just this hectare summary — every pixel that changed class between "
-            f"{_lccy0} and {_lccy1} is drawn on the **Overview** tab's map as its own toggleable layer "
+            f"{_lccy0} and {_lccy1} is drawn on the **Overview** section's map as its own toggleable layer "
             "(\"Forest & land cover change\"), so you can see *where* forest was lost and gained, not just "
             "the net number. Net change here should closely match the year-over-year trend above — a real "
             "cross-check between two independently computed views of the same underlying classification.",
             f"Een echte ruimtelijke kaart, niet alleen deze hectare-samenvatting — elke pixel die van "
-            f"klasse veranderde tussen {_lccy0} en {_lccy1} staat getekend op de kaart van het tabblad "
+            f"klasse veranderde tussen {_lccy0} en {_lccy1} staat getekend op de kaart van het onderdeel "
             "**Overzicht** als eigen aan-/uitzetbare laag (\"Bos & landgebruikverandering\"), zodat je ziet "
             "*waar* bos verloren en gewonnen is, niet alleen het nettocijfer. De nettoverandering hier komt "
             "in de buurt van de jaar-op-jaar-trend hierboven — een echte kruiscontrole tussen twee "
@@ -1865,7 +1875,7 @@ if active_page == "land":
         with st.expander(t("How this map is calculated", "Hoe deze kaart wordt berekend")):
             st.markdown(t(
                 f"1. Every Sentinel-2 August scene from {_lccy0} to {_lccy1} is independently run through "
-                "the same unsupervised KMeans classifier (Land & Crops / Trends & Climate tabs), each "
+                "the same unsupervised KMeans classifier (Land & Crops / Trends & Climate sections), each "
                 "pixel landing in one of six spectral clusters, then rolled up into four broad categories "
                 "(Water, Built-up, Agriculture, Forest/dense vegetation).\n"
                 f"2. Because every one of those years shares the exact same 10m pixel grid (checked "
@@ -1883,7 +1893,7 @@ if active_page == "land":
                 "this map's honest spatial window is the Sentinel-2 era, even though the trend *line* "
                 "goes back further.",
                 f"1. Elke Sentinel-2-augustusopname van {_lccy0} tot {_lccy1} wordt onafhankelijk door "
-                "dezelfde ongestuurde KMeans-classifier gehaald (tabbladen Land & Gewassen / Trends & "
+                "dezelfde ongestuurde KMeans-classifier gehaald (onderdelen Land & Gewassen / Trends & "
                 "Klimaat), waarbij elke pixel in een van zes spectrale clusters valt, daarna opgeschaald "
                 "naar vier brede categorieën (Water, Bebouwd, Landbouw, Bos/dichte vegetatie).\n"
                 f"2. Omdat elk van die jaren precies hetzelfde 10m-pixelraster deelt (rechtstreeks "
@@ -1985,8 +1995,8 @@ if active_page == "climate":
             if _aug["total_precip_mm"][_widx] == max(_aug["total_precip_mm"]):
                 _notes.append(t("Wettest August in this whole 22-year weather record.", "Natste augustus uit deze hele 22-jarige weersreeks."))
         if sel_year == 2024:
-            _notes.append(t("January this year: the documented Rhine/Waal high water this pipeline's flood analysis covers — see the Water tab.",
-                             "Januari dit jaar: het gedocumenteerde hoogwater van Rijn/Waal dat de overstromingsanalyse van deze pipeline behandelt — zie het tabblad Water."))
+            _notes.append(t("January this year: the documented Rhine/Waal high water this pipeline's flood analysis covers — see the Water section.",
+                             "Januari dit jaar: het gedocumenteerde hoogwater van Rijn/Waal dat de overstromingsanalyse van deze pipeline behandelt — zie het onderdeel Water."))
         for _n in _notes:
             st.info(_n)
 
@@ -2277,7 +2287,7 @@ if active_page == "forecast":
             _lc_last_year = next(iter(lc.values()))["future_years"][-1]
             st.markdown("#### " + t(f"Land cover, projected to {_lc_last_year}", f"Landgebruik, geprojecteerd tot {_lc_last_year}"))
             st.caption(t(
-                "Same four categories and common-footprint methodology as the Trends & Climate tab's "
+                "Same four categories and common-footprint methodology as the Trends & Climate section's "
                 "historical series — Forest and Water are the more spectrally stable, more trustworthy "
                 "projections; Built-up specifically inherits that series' own real classifier-wobble "
                 "caveat, now compounded by a wide extrapolation interval on top of it.",
@@ -2302,12 +2312,12 @@ if active_page == "forecast":
             st.divider()
             st.markdown("#### " + t("Population & housing stock", "Bevolking & woningvoorraad"))
             st.caption(t(
-                "Real CBS registry counts (same source as the Villages tab), extrapolated — housing stock "
+                "Real CBS registry counts (same source as the Villages section), extrapolated — housing stock "
                 "in particular is a near-straight administrative series (R² shown below), so this is the "
-                "single most defensible forecast on this whole tab.",
-                "Echte CBS-registratieaantallen (zelfde bron als het tabblad Kernen), geëxtrapoleerd — "
+                "single most defensible forecast on this whole section.",
+                "Echte CBS-registratieaantallen (zelfde bron als het onderdeel Kernen), geëxtrapoleerd — "
                 "vooral de woningvoorraad is een bijna rechte administratieve reeks (R² hieronder), dus dit "
-                "is de meest verdedigbare voorspelling op dit hele tabblad.",
+                "is de meest verdedigbare voorspelling op dit hele onderdeel.",
             ))
             pc1, pc2 = st.columns(2)
             if pop.get("population"):
@@ -2636,29 +2646,28 @@ if active_page == "methodology":
             st.caption(f"{t('Source code', 'Broncode')}: `{_e.code_ref}`")
     st.divider()
     st.caption(t(
-        "Not yet covered here: crop rotation (see the Land & Crops tab's own bug-and-method writeup), "
-        "the forecast models (see the Forecast tab's own \"how this is calculated\" expander), and the "
+        "Not yet covered here: crop rotation (see the Land & Crops section's own bug-and-method writeup), "
+        "the forecast models (see the Forecast section's own \"how this is calculated\" expander), and the "
         "villages/soil/CBS-trend/land-cover-change modules — real methods, documented inline on their "
-        "own tabs already rather than duplicated here twice.",
-        "Hier nog niet behandeld: gewasrotatie (zie de eigen bug-en-methode-uitleg op het tabblad Land "
+        "own sections already rather than duplicated here twice.",
+        "Hier nog niet behandeld: gewasrotatie (zie de eigen bug-en-methode-uitleg op het onderdeel Land "
         "& Gewassen), de voorspellingsmodellen (zie de eigen \"hoe dit wordt berekend\"-uitklapper op "
-        "het tabblad Voorspelling), en de modules voor kernen/bodem/CBS-trend/landgebruikverandering — "
-        "echte methodes, al inline gedocumenteerd op hun eigen tabblad in plaats van hier dubbel.",
+        "het onderdeel Voorspelling), en de modules voor kernen/bodem/CBS-trend/landgebruikverandering — "
+        "echte methodes, al inline gedocumenteerd op hun eigen onderdeel in plaats van hier dubbel.",
     ))
 
 # ======================================================================
 if active_page == "business":
     st.subheader(t("What this could actually be", "Wat dit daadwerkelijk zou kunnen worden"))
     st.markdown(t(
-        "Everything in the other tabs is a **working pipeline on free public data** — nothing here "
-        "needed a paid subscription to build. That's the pitch: the raw capability already exists, for "
-        "free, for any Dutch municipality. The product is turning it into something the gemeente or a "
-        "farmer actually operates against, on a schedule, instead of a one-off pull.",
-        "Alles op de andere tabbladen is een **werkende pipeline op gratis openbare data** — niets "
-        "hiervan vroeg om een betaald abonnement om te bouwen. Dat is de pitch: de ruwe mogelijkheid "
-        "bestaat al, gratis, voor elke Nederlandse gemeente. Het product is dit omzetten in iets waar de "
-        "gemeente of een boer daadwerkelijk mee werkt, op een vast schema, in plaats van een eenmalige "
-        "download.",
+        "Everything in the other sections is a **working pipeline on official open datasets**: satellite, "
+        "LiDAR, CBS, BRP, RIVM, KNMI and soil data brought together into one repeatable evidence product. "
+        "The proposal is not 'cheap data'; it is municipal decision support that can be refreshed, audited, "
+        "printed and discussed with farmers, water partners and nature managers.",
+        "Alles in de andere onderdelen is een **werkende pipeline op officiele open datasets**: satelliet, "
+        "LiDAR, CBS, BRP, RIVM, KNMI en bodemdata samengebracht in een herhaalbaar bewijsproduct. "
+        "Het voorstel is niet 'goedkope data', maar gemeentelijke beslisondersteuning die kan worden "
+        "ververst, gecontroleerd, afgedrukt en besproken met boeren, waterpartners en natuurbeheerders.",
     ))
 
     st.markdown("#### " + t("Who pays for what", "Wie betaalt waarvoor"))
@@ -2669,10 +2678,10 @@ if active_page == "business":
         "housing-growth tracking against the 76 new homes/yr baseline | Annual data contract or embedded "
         "dashboard, refreshed on each new cloud-free satellite pass |\n"
         "| **Individual farmers / LTO members** | Field-level NDVI stress alerts on their own registered "
-        "BRP parcels; real NH₃ concentration by area (Environment & Energy tab) as a first ammonia "
+        "BRP parcels; real NH₃ concentration by area (Environment & Energy section) as a first ammonia "
         "signal, with an AERIUS-grade deposition number as the next step once that data-sharing "
         "conversation with RIVM happens | Per-farm subscription, priced per registered hectare |\n"
-        "| **Waterschap Rivierenland** | The change-detection flood-extent series (Water tab) as a "
+        "| **Waterschap Rivierenland** | The change-detection flood-extent series (Water section) as a "
         "standing product, validated against their own gauge/extent data | Paid pilot to close that "
         "validation gap, then a standing monitoring contract |\n"
         "| **ARK Nature / Staatsbosbeheer** | Millingerwaard succession trend as a standing report "
@@ -2683,11 +2692,11 @@ if active_page == "business":
         "volgen van woningbouwgroei t.o.v. de basislijn van 76 nieuwe woningen/jr | Jaarlijks "
         "datacontract of ingebed dashboard, ververst bij elke nieuwe wolkenvrije satellietpassage |\n"
         "| **Individuele boeren / LTO-leden** | NDVI-stressmeldingen op perceelniveau voor hun eigen "
-        "geregistreerde BRP-percelen; echte NH₃-concentratie per gebied (tabblad Milieu & Energie) als "
+        "geregistreerde BRP-percelen; echte NH₃-concentratie per gebied (onderdeel Milieu & Energie) als "
         "eerste ammoniaksignaal, met een AERIUS-waardig depositiecijfer als volgende stap zodra dat "
         "gesprek over datadeling met RIVM plaatsvindt | Abonnement per bedrijf, geprijsd per "
         "geregistreerde hectare |\n"
-        "| **Waterschap Rivierenland** | De verandering-detectie-overstromingsreeks (tabblad Water) als "
+        "| **Waterschap Rivierenland** | De verandering-detectie-overstromingsreeks (onderdeel Water) als "
         "vast product, gevalideerd tegen hun eigen peilstok-/oppervlaktedata | Betaalde pilot om dat "
         "validatiehiaat te dichten, daarna een vast monitoringcontract |\n"
         "| **ARK Natuurontwikkeling / Staatsbosbeheer** | Successietrend Millingerwaard als vast "
@@ -2697,7 +2706,7 @@ if active_page == "business":
     st.markdown("#### " + t("The gaps that are also the roadmap", "De hiaten die ook de routekaart zijn"))
     st.markdown(t(
         "1. **Nitrogen deposition (mol N/ha/yr) via RIVM's AERIUS/GDN product.** NH₃ *concentration* "
-        "(µg/m³) is real data on the Environment & Energy tab now — RIVM's open GCN download, no "
+        "(µg/m³) is real data on the Environment & Energy section now — RIVM's open GCN download, no "
         "conversation needed. *Deposition on nature areas*, the number farm-nitrogen permitting actually "
         "runs on, is a different RIVM product (aerius.nl) not available as an open download the way "
         "concentration is — closing this gap means a data-sharing conversation with RIVM/AERIUS, and it "
@@ -2706,7 +2715,7 @@ if active_page == "business":
         "2. **Grid capacity via Liander/Netbeheer Nederland** — needed before any pitch involving new "
         "solar or business connections; currently a manual postcode lookup, not an integrated data feed.\n"
         "3. **Ground-truth validation of the flood-extent series against Waterschap Rivierenland's own "
-        "gauge/extent data** — the multi-date change-detection method (Water tab) replaced the old "
+        "gauge/extent data** — the multi-date change-detection method (Water section) replaced the old "
         "single-snapshot fixed-threshold read; what's left is checking it against someone else's "
         "independent measurement before pitching it as a trusted product.\n"
         "4. **Higher-resolution height/canopy data beyond AHN's ~5-year national LiDAR refresh cycle.** "
@@ -2716,14 +2725,14 @@ if active_page == "business":
         "AHN can't — e.g. tracking individual-tree canopy loss within a season, not just between national "
         "flights. No such commissioned drone dataset exists for this municipality today; this is a "
         "genuine future option, not something this pipeline currently has access to.\n"
-        "5. **ML beyond the current trend/rotation models.** The Forecast tab already runs a real OLS "
+        "5. **ML beyond the current trend/rotation models.** The Forecast section already runs a real OLS "
         "trend projection and a Markov crop-rotation model on this pipeline's own historical data — both "
         "genuine statistics, not black boxes. Natural next steps, none built yet: a proper time-series "
         "model (e.g. per-field NDVI anomaly detection flagging fields that deviate from their own "
         "multi-year normal, useful as an early-stress alert) and a land-cover classifier trained on "
         "multiple years of this pipeline's own KMeans output plus BRP labels, rather than KMeans alone.",
         "1. **Stikstofdepositie (mol N/ha/jr) via RIVM's AERIUS/GDN-product.** NH₃-*concentratie* "
-        "(µg/m³) is nu echte data op het tabblad Milieu & Energie — RIVM's open GCN-download, geen "
+        "(µg/m³) is nu echte data op het onderdeel Milieu & Energie — RIVM's open GCN-download, geen "
         "gesprek nodig. *Depositie op natuurgebieden*, het cijfer waar stikstofvergunningverlening voor "
         "de landbouw daadwerkelijk op draait, is een ander RIVM-product (aerius.nl) dat niet als open "
         "download beschikbaar is zoals concentratie — dit hiaat dichten vraagt om een gesprek over "
@@ -2734,7 +2743,7 @@ if active_page == "business":
         "zonne- of bedrijfsaansluitingen; nu een handmatige postcode-opzoeking, geen geïntegreerde "
         "datafeed.\n"
         "3. **Validatie van de overstromingsreeks tegen de eigen peilstok-/oppervlaktedata van "
-        "Waterschap Rivierenland** — de verandering-detectiemethode met meerdere data (tabblad Water) "
+        "Waterschap Rivierenland** — de verandering-detectiemethode met meerdere data (onderdeel Water) "
         "verving de oude momentopname met vaste drempel; wat rest is dit toetsen aan een onafhankelijke "
         "meting van iemand anders voordat het als vertrouwd product wordt gepitcht.\n"
         "4. **Hogere-resolutie hoogte-/bladerdakdata voorbij AHN's ~5-jaarlijkse landelijke LiDAR-cyclus.** "
@@ -2744,7 +2753,7 @@ if active_page == "business":
         "niet kan — bijv. bladerdakverlies per individuele boom binnen één seizoen volgen, niet alleen "
         "tussen landelijke vluchten. Zo'n opdracht-drone-dataset bestaat vandaag niet voor deze gemeente; "
         "dit is een echte toekomstoptie, geen data die deze pipeline nu al heeft.\n"
-        "5. **ML voorbij de huidige trend-/rotatiemodellen.** Het tabblad Voorspelling draait al een "
+        "5. **ML voorbij de huidige trend-/rotatiemodellen.** Het onderdeel Voorspelling draait al een "
         "echte OLS-trendprojectie en een Markov-gewasrotatiemodel op de eigen historische data van deze "
         "pipeline — beide echte statistiek, geen black box. Logische volgende stappen, nog niet gebouwd: "
         "een echt tijdreeksmodel (bijv. NDVI-afwijkingsdetectie per perceel dat percelen markeert die "
@@ -2755,10 +2764,10 @@ if active_page == "business":
 
     st.caption(t(
         "None of the above numbers are fabricated to make this pitch look better than the data supports "
-        "— see the caveats on every other tab. That honesty is itself part of the offer: a client who "
+        "— see the caveats on every other section. That honesty is itself part of the offer: a client who "
         "checks the methodology finds it holds up.",
         "Geen van bovenstaande cijfers is verzonnen om deze pitch er beter uit te laten zien dan de data "
-        "toelaat — zie de kanttekeningen op elk ander tabblad. Die eerlijkheid is zelf onderdeel van het "
+        "toelaat — zie de kanttekeningen op elk ander onderdeel. Die eerlijkheid is zelf onderdeel van het "
         "aanbod: een klant die de methodologie controleert, ziet dat die standhoudt.",
     ))
 

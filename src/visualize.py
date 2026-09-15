@@ -1115,9 +1115,9 @@ def make_map(label_new: str = "summer_2025", label_old: str = "summer_2024", lan
     )
     legend_title = ("Land cover (KMeans)", "Landgebruik (KMeans)")[i]
     _method_ref_lc = ("ℹ️ Method: unsupervised KMeans, 6 clusters — see \"Land cover (KMeans)\" on the "
-                       "Methodology tab.",
+                       "Methodology section.",
                        "ℹ️ Methode: ongestuurde KMeans, 6 clusters — zie \"Landgebruik (KMeans)\" op het "
-                       "tabblad Methodologie.")[i]
+                       "onderdeel Methodologie.")[i]
     land_cover_legend_block = f"""
     <details class="bd-legend" open>
       <summary>{legend_title}</summary>
@@ -1141,6 +1141,26 @@ def make_map(label_new: str = "summer_2025", label_old: str = "summer_2024", lan
       details.bd-legend .bd-legend-body { padding: 0 14px 12px; }
       .bd-legend-method { margin-top: 6px; padding-top: 6px; border-top: 1px dashed #ddd;
         color: #7a8177; font-size: 10px; line-height: 1.4; }
+      details.bd-legend {
+        background: rgba(255,255,255,.96); border: 1px solid #c7d0c4; border-radius: 6px;
+        box-shadow: 0 10px 26px rgba(16,40,29,.18); color: #172019;
+        font-family: "IBM Plex Sans", "Segoe UI", Arial, sans-serif; font-size: 12px;
+        backdrop-filter: blur(2px);
+      }
+      details.bd-legend summary {
+        padding: 10px 12px; font-weight: 700; border-bottom: 1px solid #e4e8df; color:#10281d;
+      }
+      details.bd-legend summary::after { content: '+'; color: #2d6f86; font-weight: 700; }
+      details.bd-legend[open] summary::after { content: '-'; }
+      details.bd-legend .bd-legend-body { padding: 8px 12px 12px; }
+      .bd-legend-method {
+        margin-top: 8px; padding-top: 7px; border-top: 1px solid #e4e8df;
+        color: #526157; font-size: 10.5px; line-height: 1.35;
+      }
+      @media print {
+        .leaflet-control-layers { display:none !important; }
+        details.bd-legend { box-shadow:none; border:1px solid #999; }
+      }
     </style>
     """))
 
@@ -1157,9 +1177,9 @@ def make_map(label_new: str = "summer_2025", label_old: str = "summer_2024", lan
                      f"{len(flood_stats.get('timeline', []))} dates through the event): "
                      f"{flood_stats.get('pre_event_flooded_pct', '?')}% &rarr; "
                      f"{flood_stats.get('peak_flooded_pct', '?')}% at peak ({net_change_txt} pts net) — "
-                     f"see README/Water tab."),
+                     f"see README/Water section."),
             "method_ref": "ℹ️ Method: see \"Flood extent — fixed threshold (old method)\" and "
-                          "\"Flood extent — change detection (new method)\" on the Methodology tab.",
+                          "\"Flood extent — change detection (new method)\" in the Methodology section.",
         },
         {
             "title": "Overstromingsgebied (SAR) — twee methodes",
@@ -1171,10 +1191,10 @@ def make_map(label_new: str = "summer_2025", label_old: str = "summer_2024", lan
                      f"{len(flood_stats.get('timeline', []))} data door de gebeurtenis): "
                      f"{flood_stats.get('pre_event_flooded_pct', '?')}% &rarr; "
                      f"{flood_stats.get('peak_flooded_pct', '?')}% op de piek ({net_change_txt} pt netto) — "
-                     f"zie README/tabblad Water."),
+                     f"zie README/onderdeel Water."),
             "method_ref": "ℹ️ Methode: zie \"Overstromingsgebied — vaste drempel (oude methode)\" en "
                           "\"Overstromingsgebied — verandering-detectie (nieuwe methode)\" op het "
-                          "tabblad Methodologie.",
+                          "onderdeel Methodologie.",
         },
     ][i]
     flood_legend_block = f"""
@@ -1206,8 +1226,8 @@ def make_map(label_new: str = "summer_2025", label_old: str = "summer_2024", lan
     )
     brp_legend_title = ("Field boundaries (BRP)", "Perceelgrenzen (BRP)")[i]
     brp_legend_note = ("Per-crop breakdown is on the dashboard.", "Uitsplitsing per gewas staat op het dashboard.")[i]
-    _method_ref_brp = ("ℹ️ Method: see \"Registered farmland (BRP)\" on the Methodology tab.",
-                        "ℹ️ Methode: zie \"Landbouwgrond (BRP)\" op het tabblad Methodologie.")[i]
+    _method_ref_brp = ("Info: see \"Registered farmland (BRP)\" in the Methodology section.",
+                        "Info: zie \"Landbouwgrond (BRP)\" in het onderdeel Methodologie.")[i]
     brp_legend_block = f"""
     <details class="bd-legend">
       <summary>{brp_legend_title}</summary>
@@ -1249,9 +1269,9 @@ def make_map(label_new: str = "summer_2025", label_old: str = "summer_2024", lan
             "(de grote meerderheid) is bewust transparant gelaten, zodat alleen echte verandering opvalt.",
         )[i]
         _method_ref_lcc = ("ℹ️ Method: same KMeans classifier as \"Land cover (KMeans)\" on the "
-                           "Methodology tab, compared pixel-for-pixel across years.",
+                           "Methodology section, compared pixel-for-pixel across years.",
                            "ℹ️ Methode: dezelfde KMeans-classifier als \"Landgebruik (KMeans)\" op het "
-                           "tabblad Methodologie, pixel-voor-pixel vergeleken over de jaren.")[i]
+                           "onderdeel Methodologie, pixel-voor-pixel vergeleken over de jaren.")[i]
         lcc_legend_block = f"""
         <details class="bd-legend" style="max-width: 260px;">
           <summary>{lcc_legend_title}</summary>

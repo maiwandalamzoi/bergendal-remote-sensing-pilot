@@ -1,7 +1,7 @@
 """
 A real, downloadable print report -- the QGIS/ArcGIS "print composer"
-equivalent this project didn't have. The sidebar's "Print this tab" button
-only ever triggered the browser's own print dialog on whatever tab
+equivalent this project didn't have. The sidebar's "Print this section" button
+only ever triggered the browser's own print dialog on whatever section
 happened to be open (no choice of what's on the page, no legend baked in
 reliably across browsers) -- this module builds an actual multi-page PDF
 instead: pick which real layers to include, get one page per layer with a
@@ -215,8 +215,8 @@ def build_report_pdf(selected_keys: list[str], lang: str = "en") -> bytes:
         for i, title in enumerate(layer_titles):
             fig.text(0.5, toc_top - i * step, f"{i + 1}. {title}", fontsize=9, ha="center", color="#16221C")
         fig.text(0.5, 0.05,
-                  ("Real satellite/LiDAR/registry data -- nothing on this report is simulated." if lang == "en" else
-                   "Echte satelliet-, LiDAR- en registratiedata -- niets op dit rapport is gesimuleerd."),
+                  ("Official open satellite/LiDAR/registry data -- nothing on this report is simulated." if lang == "en" else
+                   "Officiele open satelliet-, LiDAR- en registratiedata -- niets op dit rapport is gesimuleerd."),
                   fontsize=8, ha="center", style="italic", color="#7a8177")
         pdf.savefig(fig)
         plt.close(fig)
