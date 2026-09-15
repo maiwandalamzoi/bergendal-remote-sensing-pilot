@@ -1,9 +1,20 @@
 # Berg en Dal — remote sensing pilot
 
+## Short version
+
+This is a working municipal intelligence pilot for Berg en Dal, Gelderland. It combines open satellite imagery, LiDAR, crop parcels, weather, air-quality and official statistics into one decision dashboard for land, water, crops, climate risk and planning.
+
+The project is designed to become a 90-day operational pilot with the municipality and partners such as Waterschap Rivierenland, local agricultural advisers and nature-management organizations. The current app proves the technical base: field-level parcels are clickable, trends are computed from official open datasets, and the dashboard can export a report-ready PDF.
+
+Sendable materials are in:
+
+- `docs/outreach_email.md` - email to request a meeting
+- `docs/pilot_proposal.md` - short proposal for a 90-day pilot
+
 Working code for the concept note ("Berg en Dal from Orbit"): a real satellite
 + LiDAR pipeline over the Berg en Dal municipality (Gelderland, NL), from
 fetch through preprocessing to unsupervised ML and two ways to look at the
-result. Everything here runs on public data — no API keys, no credentials,
+result. Everything here runs on official open datasets — no API keys, no credentials,
 nothing to configure.
 
 ## Run it
@@ -118,10 +129,10 @@ from here (needs your own GitHub/Streamlit accounts for the last step).
    English/Dutch language switch — every UI string routes through one
    `t(en, nl)` call keyed off `st.session_state.lang`, not both languages
    shown inline at once — plus a village/place selector, see **Villages**
-   below) and nine tabs: Overview, **Field Explorer**, **Villages**, Land
+   below) and ten sections: Overview, **Field Explorer**, **Villages**, Land
    & Crops, **Trends & Climate**, **🔮 Forecast** (simple OLS trend
    projections plus a crop-rotation Markov model — see **Forecast**
-   below), Environment & Energy, Water, and a Business case tab spelling
+   below), Environment & Energy, Water, Methodology and a Business case section spelling
    out who'd actually pay for this and what the real remaining data gaps
    are. Genuinely Dutch data values (BRP crop and
    category names) stay Dutch regardless of the switch — those are real
@@ -144,7 +155,7 @@ from here (needs your own GitHub/Streamlit accounts for the last step).
    village polygon, rasterized against the same WGS84 rectangle Folium
    draws the PNG onto), leaving the plain OpenStreetMap basemap visible
    everywhere else — a real "snap and cut," not an outline drawn on top
-   of unchanged imagery (other tabs stay municipality-wide, stated
+   of unchanged imagery (other sections stay municipality-wide, stated
    explicitly rather than left ambiguous).
 
    **Map controls & print report** — both Folium maps (Overview and Field
@@ -160,15 +171,15 @@ from here (needs your own GitHub/Streamlit accounts for the last step).
    (category, crop family, and now the two NDVI modes too, each a
    gradient swatch built from the same vmin/vmax/colormap the fill itself
    uses, so legend and fill can't disagree). The sidebar's "Print this
-   tab" button triggers the browser's own print dialog
+   section" button triggers the browser's own print dialog
    (`window.parent.print()`) against dedicated print CSS that hides the
-   sidebar, Streamlit's header/toolbar and the tab bar — a plain "save
+   sidebar, Streamlit's header/toolbar and the section selector — a plain "save
    the page as PDF" rather than a separate export pipeline, but with
    the title/legend/scale/north-arrow already drawn onto the map so what
    prints looks like an actual cartographic sheet, not a screenshot of an
    interactive widget.
 
-   **Trends & Climate** is the 22-year analysis tab: a **Year Explorer**
+   **Trends & Climate** is the 22-year analysis section: a **Year Explorer**
    widget up top (`st.select_slider`) that pulls every number this
    pipeline has for one chosen year — NDVI, NDWI, sensor/platform, that
    August's rainfall/temperature/sunshine, crop-rotation coverage, and
@@ -219,7 +230,7 @@ from here (needs your own GitHub/Streamlit accounts for the last step).
    answers "what else do we know about this spot" beyond just the BRP record.
 
    The dashboard has its own visual identity (`.streamlit/config.toml` +
-   injected CSS in `dashboard.py`) — Fraunces/Source Sans 3 type, a forest-
+   injected CSS in `dashboard.py`) — IBM Plex Serif/IBM Plex Sans type, a forest-
    green header banner with a data-freshness timestamp, and card-styled
    metrics — rather than default Streamlit chrome, since this is meant to
    go in front of the gemeente, not just a developer's own screen.
@@ -379,7 +390,7 @@ merely unfetched. NH3/nitrogen deposition (RIVM's GDN/AERIUS product) has
 no public WCS/WFS at all, under any of the endpoint patterns RIVM's own
 other services (used successfully elsewhere in this pipeline) follow.
 Both are named gaps with a specific, checked reason, not silent
-omissions — see the Environment & Energy tab.
+omissions — see the Environment & Energy section.
 
 ### Forecast: simple, honest ML on everything above, not a black box
 
@@ -391,8 +402,8 @@ src/forecast.py` runs in seconds):
   22-year trend, projected 5 years out with a real OLS 80% prediction
   interval (`scipy.stats.t`, widening with distance from the data's own
   mean year — the textbook formula, not a fixed ±band). R²=0.31 on the
-  22-year series, stated on the tab itself rather than hidden behind the
-  point estimate — this pipeline's own Trends & Climate tab already says
+  22-year series, stated on the section itself rather than hidden behind the
+  point estimate — this pipeline's own Trends & Climate section already says
   "read the shape, not the slope" about the *historical* NDVI series; a
   forecast built on top of it inherits that caveat, more so.
 - **Land cover** (built-up/forest/agriculture/water): the same
@@ -415,7 +426,7 @@ src/forecast.py` runs in seconds):
   result: maize self-persists 49% of the time, rotates to cereals or root
   crops ~28% combined — textbook Dutch arable rotation, not noise.
 
-**Powers two dashboard surfaces:** a **🔮 Forecast** tab (charts: solid
+**Powers two dashboard surfaces:** a **🔮 Forecast** section (charts: solid
 history, dashed projection, shaded 80% band — "read the band, not the
 dashed line" stated once up top rather than five times below) and Field
 Explorer's **🔮 Predicted next crop (ML)** colour mode, which colours
@@ -439,7 +450,7 @@ the dashboard's own existing `classify_crop()` calls never exercised.
 
 ### Forest & land cover change: a real spatial map, not just a hectare number
 
-The Trends & Climate tab's own land-cover-trend chart (2018-present) only
+The Trends & Climate section's own land-cover-trend chart (2018-present) only
 ever showed *how much* built-up/forest/agriculture/water changed, as an
 aggregate hectare series — not *where*. **`landcover_trend.build_change_map()`**
 answers that directly: every pixel that changed broad category between the
@@ -456,7 +467,7 @@ eye. Real result, 2018→2026: **714 ha forest lost, 789 ha gained** (net
 underlying classification, not a coincidence). Rendered as its own
 toggleable layer on the Overview map (`src/visualize.py`'s
 `landcover_change_png()`) and summarized with metrics + a "how this map
-is calculated" expander on the Land & Crops tab.
+is calculated" expander on the Land & Crops section.
 
 **A real, stated limit, not an oversight:** this map's spatial window is
 the Sentinel-2 era (2018-present) only, even though the *trend line*
@@ -472,12 +483,11 @@ own methodology consistently refuses to do.
 
 ### A deliberate icon pass: fewer, not more
 
-After a design review, every tab-bar icon and one-off decorative emoji
+After a design review, every section-navigation icon and one-off decorative emoji
 prefixed onto section headings/inline notes was removed in favour of
-plain text — Streamlit's `st.tabs()` can only render plain text or emoji
-per tab (no custom icon graphics), so plain text was the more
-professional, human-designed-reading option available, not a
-compromise. What's *kept*: the crop-family pictograms on the map and its
+plain text. The current page-level section selector is deliberately text-first,
+so the navigation reads like a municipal dashboard rather than a decorative
+demo. What's *kept*: the crop-family pictograms on the map and its
 legends (🌱🌽🌾🥔🥬🍎🍀🌳❔ — real, distinguishing symbols a user reads
 in seconds, not decoration), the location-pin/print-button icons (📍🖨️,
 conventional functional symbols), the single 🛰️ used consistently as
@@ -560,7 +570,7 @@ y-axis (a real quantity) now carries a light, recessive horizontal grid
 genuinely useful for reading a value off, while the x-axis (almost
 always an ordinal year -- 20+ categories) stays grid-free rather than
 turning into a busy vertical comb. Both axes now render in the app's own
-body font (Source Sans 3) instead of Vega-Lite's default, so a chart
+body font (IBM Plex Sans) instead of Vega-Lite's default, so a chart
 never reads as a different, less-designed surface bolted onto the page.
 
 **Crop icons on the map (`src/visualize.py`):** the CROP_FAMILIES emoji
@@ -654,7 +664,7 @@ memory. It powers two things that literally cannot drift apart, because
 one generates the other:
 
 - **`METHODOLOGY.md`** (repo root) -- `python src/methodology.py` regenerates it.
-- **The dashboard's own Methodology tab** -- renders the same `ENTRIES` list directly.
+- **The dashboard's own Methodology section** -- renders the same `ENTRIES` list directly.
 
 Covers, at minimum, exactly the indicators asked for: population,
 households, registered farmland, land area, homes with solar, NDVI,
@@ -708,19 +718,15 @@ per value, not per language -- so the fix carries through both English
 and Nederlands without a second implementation to keep in sync; the
 `ⓘ` methodology popovers next to the NDVI/NDWI metrics use the same
 `method_popover()` as the Overview cards, so the "what does this
-number actually mean" link exists outside the Overview tab too.
+number actually mean" link exists outside the Overview section too.
 
-**A small ⓘ info popover, not a broken cross-tab link.** Every KPI card
+**A small ⓘ info popover, not a broken cross-section link.** Every KPI card
 and four of the map's own legend boxes (land cover, BRP, forest-change,
 flood) carry a `method_popover()`/`ℹ️ Method:` reference to the matching
 entry. This is deliberately a real `st.popover` (or, on the map, a plain
-text pointer) rather than a link that jumps to the Methodology tab:
-Streamlit's `st.tabs()` has no supported API to switch tabs from a
-click, and an anchor pointing into a different tab's panel lands on an
-element hidden by Streamlit's own `display:none`, which a browser can't
-usefully scroll to. Delivering the real content on the spot is the
-version of "an info icon that links to its entry" that this Streamlit
-version can actually do reliably.
+text pointer) rather than a brittle cross-page jump. Delivering the real
+content on the spot is the version of "an info icon that links to its entry"
+that this Streamlit app can actually do reliably.
 
 ## What it found (first pass)
 
@@ -728,7 +734,7 @@ version can actually do reliably.
   darkest is very likely conifer/shaded canopy on the ridge), ~12%
   grass/farmland, ~6% water, ~6% built-up/bare. Unlabelled by anything
   except its own spectral signature — real BRP crop names now sit alongside
-  it (Land & Crops tab) for the ~half of the AOI that's registered farmland,
+  it (Land & Crops section) for the ~half of the AOI that's registered farmland,
   but the unmanaged-forest majority of "dense vegetation" is still a
   spectral best guess, not a validated classification.
 - **NDVI, 2005–2026 (`ndvi_trend.py`):** net -0.157 over 21 years, but read
@@ -826,7 +832,7 @@ history, and are deliberately not fetched as if they were real). Current
 result: mean 5.28 ug/m3 (2025), +0.50 vs 2024. This is **concentration**,
 not **deposition** (mol N/ha/yr, the AERIUS/GDN figure Dutch farm-nitrogen
 permitting actually runs on) — that distinction is carried through the
-card, its ⓘ methodology entry, and the Environment & Energy tab's own
+card, its ⓘ methodology entry, and the Environment & Energy section's own
 explanatory box, not glossed over now that a real NH3 number exists.
 
 **Land-cover colours and icons now mean something, everywhere they're
@@ -841,7 +847,7 @@ leaf; the same Feather/Lucide-style single-stroke convention as the crop
 icons, not a photo or a generic AI-generated image) shown next to its
 colour swatch on both the interactive map's own legend and a new
 `landcover_class_chart()` Altair chart that replaced a plain
-default-blue `st.bar_chart` on the Overview tab. A `LANDCOVER_LABELS_NL`
+default-blue `st.bar_chart` on the Overview section. A `LANDCOVER_LABELS_NL`
 lookup translates the fixed English cluster names `landcover_ml.py`
 produces (that stage labels clusters from their own spectral signature,
 not UI text, so it has no bilingual convention of its own) everywhere
@@ -852,7 +858,7 @@ when the page does. `LANDCOVER_TREND_COLORS` (the separate, coarser
 
 ### Business case: NH3 reframed, and the roadmap now includes ML and drone data
 
-The Business case tab's nitrogen-permitting pitch referenced NH3/AERIUS
+The Business case section's nitrogen-permitting pitch referenced NH3/AERIUS
 as entirely unavailable; updated to reflect what's now true — real NH3
 *concentration* is delivered today, *deposition* remains the one
 open item, still requiring a data-sharing conversation with RIVM/AERIUS.
@@ -869,8 +875,8 @@ BRP labels, neither built yet.
 
 ### A real print/export report (`src/report.py`)
 
-The sidebar's "Print this tab" button only ever triggered the browser's
-own print dialog on whatever tab happened to be open -- no choice of
+The sidebar's "Print this section" button only ever triggered the browser's
+own print dialog on whichever section happened to be open -- no choice of
 what's on the page, and no real legend/scale bar baked in reliably
 across browsers. `src/report.py` builds an actual multi-page PDF
 instead, in the same spirit as a QGIS/ArcGIS print composer: a sidebar
@@ -913,7 +919,7 @@ coordinate math.
 ### Real colours on every remaining chart, not just the KMeans one
 
 Three more native `st.bar_chart` calls were still plain default-blue,
-carrying none of this app's own colour language: the Land & Crops tab's
+carrying none of this app's own colour language: the Land & Crops section's
 "Land use category" chart, its "Top crops by area" chart, and Field
 Explorer's own "How it's going" 2024→2025 NDVI comparison for a clicked
 field. Replaced with real Altair charts: the category chart uses
